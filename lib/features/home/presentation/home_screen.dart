@@ -124,7 +124,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        padding: EdgeInsets.only(bottom: 100),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 104),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
