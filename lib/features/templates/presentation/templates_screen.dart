@@ -138,58 +138,30 @@ class _TemplatesScreenState extends State<TemplatesScreen>
     final topPad = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
+      backgroundColor: const Color(0xFF141414), // Solid dark prequel bg
+      body: Column(
         children: [
-          // Background gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0D0D1A), AppColors.background],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-          // Ambient orb
-          Positioned(
-            top: -60,
-            right: -60,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.accentCyan.withValues(alpha: 0.07),
-              ),
-            ),
+          // ── App bar ─────────────────────────────────────────
+          _TemplatesAppBar(topPad: topPad),
+
+          // ── Category chips ──────────────────────────────────
+          _CategoryChips(
+            categories: _categories,
+            selectedIndex: _selectedCategory,
+            onSelect: (i) => setState(() => _selectedCategory = i),
           ),
 
-          Column(
-            children: [
-              // ── App bar ─────────────────────────────────────────
-              _TemplatesAppBar(topPad: topPad),
+          const SizedBox(height: 16),
 
-              // ── Category chips ──────────────────────────────────
-              _CategoryChips(
-                categories: _categories,
-                selectedIndex: _selectedCategory,
-                onSelect: (i) => setState(() => _selectedCategory = i),
+          // ── Template grid ────────────────────────────────────
+          Expanded(
+            child: FadeTransition(
+              opacity: _fadeCtrl,
+              child: _TemplateGrid(
+                templates: _filtered,
+                onUse: (template) => context.go(AppRoutes.editor),
               ),
-
-              const SizedBox(height: 16),
-
-              // ── Template grid ────────────────────────────────────
-              Expanded(
-                child: FadeTransition(
-                  opacity: _fadeCtrl,
-                  child: _TemplateGrid(
-                    templates: _filtered,
-                    onUse: (template) => context.go(AppRoutes.editor),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -340,7 +312,7 @@ class _TemplateGrid extends StatelessWidget {
 
     return GridView.builder(
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).padding.bottom + 104),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 14,

@@ -1024,10 +1024,7 @@ class _EditorToolbar extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).padding.bottom + 104, 
-            top: 8,
-          ),
+          padding: const EdgeInsets.only(bottom: 20, top: 8),
           decoration: BoxDecoration(
             color: AppColors.surfaceDark.withValues(alpha: 0.85),
             border: Border(

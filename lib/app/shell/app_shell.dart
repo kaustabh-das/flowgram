@@ -4,17 +4,11 @@ import 'package:go_router/go_router.dart';
 import '../theme/app_colors.dart';
 import '../router/app_router.dart';
 
-/// Persistent shell with a glassmorphic floating bottom navigation bar.
+/// Persistent shell with a solid dark bottom navigation bar.
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.child});
 
   final Widget child;
-
-  static const _tabs = [
-    _TabItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
-    _TabItem(icon: Icons.auto_fix_high_outlined, activeIcon: Icons.auto_fix_high_rounded, label: 'Editor'),
-    _TabItem(icon: Icons.grid_view_rounded, activeIcon: Icons.grid_view_rounded, label: 'Templates'),
-  ];
 
   static const _routes = [
     AppRoutes.home,
@@ -37,168 +31,92 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      extendBody: true,
+      extendBody: false,
       body: child,
-      bottomNavigationBar: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          bottom: bottomPadding + 16,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(top: 24.0),
+        child: FloatingActionButton(
+          onPressed: () => context.go(AppRoutes.editor),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 4,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.add_rounded, size: 32),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              height: 68,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMid.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(_tabs.length, (i) {
-                  return _AnimatedNavItem(
-                    tab: _tabs[i],
-                    isSelected: i == currentIndex,
-                    onTap: () => context.go(_routes[i]),
-                  );
-                }),
-              ),
+      ),
+      bottomNavigationBar: Container(
+        height: 64 + bottomPadding,
+        padding: EdgeInsets.only(bottom: bottomPadding),
+        decoration: const BoxDecoration(
+          color: Color(0xFF141414), 
+          border: Border(top: BorderSide(color: Colors.white10, width: 1)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _AnimatedNavItem(
+              icon: Icons.image_outlined,
+              activeIcon: Icons.image_rounded,
+              label: 'Photo',
+              isSelected: currentIndex == 0,
+              onTap: () => context.go(AppRoutes.home),
             ),
-          ),
+            const SizedBox(width: 48), 
+            _AnimatedNavItem(
+              icon: Icons.bolt_outlined,
+              activeIcon: Icons.bolt_rounded,
+              label: 'Ai Effects',
+              isSelected: currentIndex == 2,
+              onTap: () => context.go(AppRoutes.templates),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _TabItem {
-  const _TabItem({
+class _AnimatedNavItem extends StatelessWidget {
+  const _AnimatedNavItem({
     required this.icon,
     required this.activeIcon,
     required this.label,
+    required this.isSelected,
+    required this.onTap,
   });
 
   final IconData icon;
   final IconData activeIcon;
   final String label;
-}
-
-class _AnimatedNavItem extends StatefulWidget {
-  const _AnimatedNavItem({
-    required this.tab,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final _TabItem tab;
   final bool isSelected;
   final VoidCallback onTap;
 
   @override
-  State<_AnimatedNavItem> createState() => _AnimatedNavItemState();
-}
-
-class _AnimatedNavItemState extends State<_AnimatedNavItem>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scaleAnim;
-  late final Animation<double> _fadeAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-      value: widget.isSelected ? 1.0 : 0.0,
-    );
-    _scaleAnim = Tween<double>(begin: 0.85, end: 1.0)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
-    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
-  }
-
-  @override
-  void didUpdateWidget(_AnimatedNavItem oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isSelected != oldWidget.isSelected) {
-      widget.isSelected ? _ctrl.forward() : _ctrl.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 80,
-        height: 68,
+        height: 64,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ScaleTransition(
-              scale: _scaleAnim,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: widget.isSelected
-                    ? ShaderMask(
-                        key: const ValueKey('active'),
-                        shaderCallback: (bounds) =>
-                            AppColors.accentGradient.createShader(bounds),
-                        blendMode: BlendMode.srcIn,
-                        child: Icon(widget.tab.activeIcon, size: 26),
-                      )
-                    : Icon(
-                        key: const ValueKey('inactive'),
-                        widget.tab.icon,
-                        size: 24,
-                        color: AppColors.textSecondary,
-                      ),
-              ),
+            Icon(
+              isSelected ? activeIcon : icon,
+              size: 26,
+              color: isSelected ? Colors.white : Colors.white54,
             ),
             const SizedBox(height: 4),
-            FadeTransition(
-              opacity: _fadeAnim,
-              child: Text(
-                widget.tab.label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  foreground: Paint()
-                    ..shader = AppColors.accentGradient.createShader(
-                      const Rect.fromLTWH(0, 0, 80, 16),
-                    ),
-                ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? Colors.white : Colors.white54,
               ),
             ),
-            if (!widget.isSelected)
-              Text(
-                widget.tab.label,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
-                ),
-              ),
           ],
         ),
       ),

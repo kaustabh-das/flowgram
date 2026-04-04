@@ -10,76 +10,24 @@ import '../../../core/widgets/glass_card.dart';
 // ── Mock data ──────────────────────────────────────────────────────────────
 
 class _FilterItem {
-  const _FilterItem({required this.name, required this.gradient, required this.icon});
+  const _FilterItem({required this.name});
   final String name;
-  final Gradient gradient;
-  final IconData icon;
 }
 
 const _filters = [
-  _FilterItem(
-    name: 'Cinematic',
-    icon: Icons.movie_filter_rounded,
-    gradient: LinearGradient(
-      colors: [Color(0xFF9B5DE5), Color(0xFF6A0DAD)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
-  _FilterItem(
-    name: 'Moody',
-    icon: Icons.wb_twilight_rounded,
-    gradient: LinearGradient(
-      colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
-  _FilterItem(
-    name: 'Golden',
-    icon: Icons.wb_sunny_rounded,
-    gradient: LinearGradient(
-      colors: [Color(0xFFFFB347), Color(0xFFFF7043)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
-  _FilterItem(
-    name: 'Neon',
-    icon: Icons.electric_bolt_rounded,
-    gradient: LinearGradient(
-      colors: [Color(0xFF00D4FF), Color(0xFF9B5DE5)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
-  _FilterItem(
-    name: 'Film',
-    icon: Icons.camera_roll_rounded,
-    gradient: LinearGradient(
-      colors: [Color(0xFF3D5A80), Color(0xFF293241)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
-  _FilterItem(
-    name: 'Dreamy',
-    icon: Icons.cloud_rounded,
-    gradient: LinearGradient(
-      colors: [Color(0xFFE040FB), Color(0xFF7E57C2)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
+  _FilterItem(name: 'All'),
+  _FilterItem(name: '🎬 Movie colors'),
+  _FilterItem(name: '✨ Aesthetics'),
+  _FilterItem(name: '❤️ Favorites'),
 ];
 
+// Instead of colored squares, we will use mock network images or asset paths later.
+// We'll use simple colors as placeholders but in large vertical card format.
 final _recentColors = [
   [const Color(0xFF1A1A2E), const Color(0xFF9B5DE5)],
   [const Color(0xFF0D1B2A), const Color(0xFF00D4FF)],
   [const Color(0xFF2D1B00), const Color(0xFFFFB347)],
   [const Color(0xFF0A0A0A), const Color(0xFFE040FB)],
-  [const Color(0xFF1C0A2E), const Color(0xFF6A0DAD)],
-  [const Color(0xFF0A1A1A), const Color(0xFF30D158)],
 ];
 
 // ── Screen ─────────────────────────────────────────────────────────────────
@@ -91,124 +39,78 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _headerCtrl;
-  late final Animation<double> _headerFade;
-  late final Animation<Offset> _headerSlide;
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedFilter = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _headerCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..forward();
-    _headerFade = CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOut);
-    _headerSlide = Tween<Offset>(begin: const Offset(0, -0.1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOut));
-  }
-
-  @override
-  void dispose() {
-    _headerCtrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFF141414), // Dark solid prequel bg
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 104),
+        padding: const EdgeInsets.only(bottom: 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Hero header ─────────────────────────────────────────
-            _HeroHeader(
-              topPad: topPad,
-              fadeAnim: _headerFade,
-              slideAnim: _headerSlide,
-              onEditorTap: () => context.go(AppRoutes.editor),
-              onTemplatesTap: () => context.go(AppRoutes.templates),
-            ),
+            // App Bar
+            _PrequelAppBar(topPad: topPad),
 
-            const SizedBox(height: 28),
-
-            // ── Featured Filters ────────────────────────────────────
-            _SectionHeader(title: 'Featured Filters', onSeeAll: () {}),
-            const SizedBox(height: 14),
+            // Categories
             SizedBox(
-              height: 130,
+              height: 40,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: _filters.length,
-                itemBuilder: (context, i) => _FilterChip(
+                itemBuilder: (context, i) => _PrequelCategoryChip(
                   filter: _filters[i],
                   isSelected: _selectedFilter == i,
                   onTap: () => setState(() => _selectedFilter = i),
                 ),
               ),
             ),
+            
+            const SizedBox(height: 20),
+
+            // Hero Banner
+            _PrequelHeroBanner(onTap: () => context.go(AppRoutes.editor)),
 
             const SizedBox(height: 32),
 
-            // ── Quick Actions ────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _QuickAction(
-                      icon: Icons.add_photo_alternate_rounded,
-                      label: 'New Edit',
-                      gradient: AppColors.accentGradient,
-                      onTap: () => context.go(AppRoutes.editor),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _QuickAction(
-                      icon: Icons.grid_view_rounded,
-                      label: 'Templates',
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00D4FF), Color(0xFF007AFF)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      onTap: () => context.go(AppRoutes.templates),
-                    ),
-                  ),
-                ],
+            // Section 1
+            _SectionHeader(title: 'Popular FX & filters', subtitle: 'Explore the trendiest effects and filters that everyone loves using'),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 280,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 4,
+                itemBuilder: (context, i) => _VerticalCard(colors: _recentColors[i], index: i),
               ),
             ),
 
             const SizedBox(height: 32),
 
-            // ── Recently Edited ──────────────────────────────────────
-            _SectionHeader(title: 'Recently Edited', onSeeAll: () {}),
-            const SizedBox(height: 14),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.78,
-              ),
-              itemCount: _recentColors.length,
-              itemBuilder: (context, i) => _RecentCard(
-                colors: _recentColors[i],
-                index: i,
-                onTap: () => context.go(AppRoutes.editor),
+            // Section 2
+            _SectionHeader(title: 'New', subtitle: null),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 280,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 4,
+                itemBuilder: (context, i) => _VerticalCard(
+                  colors: _recentColors[(i + 2) % _recentColors.length], 
+                  index: i + 4,
+                  aspectRatio: 1.5,
+                ),
               ),
             ),
           ],
@@ -218,195 +120,71 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-// ── Hero Header ─────────────────────────────────────────────────────────────
+// ── Components ─────────────────────────────────────────────────────────────
 
-class _HeroHeader extends StatelessWidget {
-  const _HeroHeader({
-    required this.topPad,
-    required this.fadeAnim,
-    required this.slideAnim,
-    required this.onEditorTap,
-    required this.onTemplatesTap,
-  });
-
+class _PrequelAppBar extends StatelessWidget {
+  const _PrequelAppBar({required this.topPad});
   final double topPad;
-  final Animation<double> fadeAnim;
-  final Animation<Offset> slideAnim;
-  final VoidCallback onEditorTap;
-  final VoidCallback onTemplatesTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.only(top: topPad + 16, left: 20, right: 20, bottom: 32),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF0D0D1A), Color(0xFF0A0A0A)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: Stack(
-        children: [
-          // Ambient orbs
-          Positioned(
-            top: -20,
-            right: -30,
-            child: _AmbientOrb(
-              color: AppColors.accentPurple.withValues(alpha: 0.18),
-              size: 180,
-            ),
-          ),
-          Positioned(
-            top: 40,
-            left: -40,
-            child: _AmbientOrb(
-              color: AppColors.accentCyan.withValues(alpha: 0.10),
-              size: 140,
-            ),
-          ),
-          // Content
-          SlideTransition(
-            position: slideAnim,
-            child: FadeTransition(
-              opacity: fadeAnim,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Greeting
-                  Text(
-                    'Good evening ✨',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Title with gradient
-                  ShaderMask(
-                    shaderCallback: (bounds) =>
-                        AppColors.accentGradient.createShader(bounds),
-                    blendMode: BlendMode.srcIn,
-                    child: Text(
-                      'Flowgram',
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1,
-                          ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Create. Edit. Flow.',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w400,
-                        ),
-                  ),
-                  const SizedBox(height: 24),
-                  // CTA pill
-                  GestureDetector(
-                    onTap: onEditorTap,
-                    child: GlassCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      borderRadius: 16,
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0x339B5DE5),
-                          Color(0x2200D4FF),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ShaderMask(
-                            shaderCallback: (b) =>
-                                AppColors.accentGradient.createShader(b),
-                            blendMode: BlendMode.srcIn,
-                            child: const Icon(Icons.add_rounded, size: 22),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Start New Edit',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                          const SizedBox(width: 10),
-                          const Icon(Icons.chevron_right_rounded,
-                              color: AppColors.textSecondary, size: 18),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Supporting widgets ───────────────────────────────────────────────────────
-
-class _AmbientOrb extends StatelessWidget {
-  const _AmbientOrb({required this.color, required this.size});
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-      ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-        child: const SizedBox.expand(),
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.onSeeAll});
-  final String title;
-  final VoidCallback onSeeAll;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.only(top: topPad + 12, left: 16, right: 16, bottom: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-          ),
-          GestureDetector(
-            onTap: onSeeAll,
-            child: ShaderMask(
-              shaderCallback: (b) => AppColors.accentGradient.createShader(b),
-              blendMode: BlendMode.srcIn,
-              child: Text(
-                'See all',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
+          // PRO Button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFB347),
+              borderRadius: BorderRadius.circular(16),
             ),
+            child: Row(
+              children: [
+                const Icon(Icons.star_rounded, color: Colors.black, size: 14),
+                const SizedBox(width: 4),
+                const Text(
+                  'PRO',
+                  style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+
+          // Logo
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Flowgram',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Container(
+                width: 6,
+                height: 6,
+                margin: const EdgeInsets.only(top: 8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFB347),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+
+          // Icons
+          Row(
+            children: [
+              const Icon(Icons.search_rounded, color: Colors.white, size: 24),
+              const SizedBox(width: 16),
+              const Icon(Icons.person_outline_rounded, color: Colors.white, size: 24),
+            ],
           ),
         ],
       ),
@@ -414,13 +192,8 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.filter,
-    required this.isSelected,
-    required this.onTap,
-  });
-
+class _PrequelCategoryChip extends StatelessWidget {
+  const _PrequelCategoryChip({required this.filter, required this.isSelected, required this.onTap});
   final _FilterItem filter;
   final bool isSelected;
   final VoidCallback onTap;
@@ -429,101 +202,75 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        width: 100,
+      child: Container(
         margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          filter.name,
+          style: TextStyle(
+            color: isSelected ? Colors.black : Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PrequelHeroBanner extends StatelessWidget {
+  const _PrequelHeroBanner({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        height: 220,
+        width: double.infinity,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: filter.gradient,
-          border: isSelected
-              ? Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2)
-              : Border.all(color: Colors.transparent, width: 2),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: (filter.gradient as LinearGradient)
-                        .colors
-                        .first
-                        .withValues(alpha: 0.5),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  )
-                ]
-              : [],
+          color: const Color(0xFF202020), 
+          image: const DecorationImage(
+            image: NetworkImage('https://images.unsplash.com/photo-1515347619362-e9d6d1b73e51?q=80&w=1200&auto=format&fit=crop'), 
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black38, BlendMode.darken),
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(filter.icon, color: Colors.white, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              filter.name,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+            const Text(
+              'sensual', 
+              style: TextStyle(
+                fontFamily: 'cursive', 
+                fontSize: 64,
+                color: Color(0xFFFFE4E1),
               ),
             ),
-            if (isSelected) ...[
-              const SizedBox(height: 6),
-              Container(
-                width: 20,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(2),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFDAB9), Color(0xFFEEDC82)],
                 ),
+                borderRadius: BorderRadius.circular(20),
               ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.gradient,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final Gradient gradient;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressableCard(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: Colors.white, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+              child: const Text(
+                'Try now',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
             ),
           ],
@@ -533,123 +280,86 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-class _RecentCard extends StatelessWidget {
-  const _RecentCard({
-    required this.colors,
-    required this.index,
-    required this.onTap,
-  });
-
-  final List<Color> colors;
-  final int index;
-  final VoidCallback onTap;
-
-  static const _labels = ['Portrait', 'Landscape', 'Story', 'Reel', 'Abstract', 'Minimal'];
-  static const _times = ['2h ago', 'Yesterday', '3 days ago', 'Last week', '2 weeks ago', '1 month ago'];
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.subtitle});
+  final String title;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
-    return PressableCard(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: LinearGradient(
-            colors: colors,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: colors.last.withValues(alpha: 0.25),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // Decorative pattern
-            Positioned(
-              top: -20,
-              right: -20,
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.07),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -10,
-              left: -10,
-              child: Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.05),
-                ),
-              ),
-            ),
-            // Edit icon
-            Positioned(
-              top: 12,
-              right: 12,
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.edit_rounded, color: Colors.white70, size: 16),
-              ),
-            ),
-            // Bottom info
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(18),
-                  bottomRight: Radius.circular(18),
-                ),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    color: Colors.black.withValues(alpha: 0.35),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _labels[index % _labels.length],
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _times[index % _times.length],
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
                   ),
                 ),
-              ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w400,
+                      fontSize: 13,
+                    ),
+                  ),
+                ]
+              ],
             ),
-          ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white30),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Row(
+              children: [
+                Text('All', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, color: Colors.white, size: 14),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class _VerticalCard extends StatelessWidget {
+  const _VerticalCard({required this.colors, required this.index, this.aspectRatio = 0.6});
+  final List<Color> colors;
+  final int index;
+  final double aspectRatio;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 280 * aspectRatio,
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+      ),
+      child: Center(
+        child: Icon(Icons.auto_awesome, color: Colors.white.withOpacity(0.5), size: 40),
       ),
     );
   }
