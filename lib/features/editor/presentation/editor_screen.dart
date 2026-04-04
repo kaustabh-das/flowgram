@@ -15,6 +15,8 @@ import '../../../core/services/image_picker_service.dart';
 import '../../../core/utils/image_utils.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../gallery/presentation/gallery_provider.dart';
+import 'package:colorfilter_generator/colorfilter_generator.dart';
+import 'package:colorfilter_generator/addons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State
@@ -31,24 +33,24 @@ class EditorImageState {
     this.activeToolIndex = -1,
     this.errorMessage,
     this.imageSizeLabel,
+    this.brightness = 0.0,
+    this.contrast = 0.0,
+    this.saturation = 0.0,
+    this.isVintage = false,
   });
 
   final EditorStatus status;
-
-  /// The permanent copy in app storage (source of truth for edits).
   final File? sourceFile;
-
-  /// Decoded [ui.Image] ready for display, sub-sampled to fit screen.
   final ui.Image? displayImage;
-
-  /// 256-px thumbnail bytes used for the mini preview strip.
   final Uint8List? thumbnail;
-
   final int activeToolIndex;
   final String? errorMessage;
-
-  /// Human-readable "2048 × 1536" label shown in the app bar.
   final String? imageSizeLabel;
+
+  final double brightness;
+  final double contrast;
+  final double saturation;
+  final bool isVintage;
 
   bool get hasImage => sourceFile != null && displayImage != null;
 
@@ -60,6 +62,10 @@ class EditorImageState {
     int? activeToolIndex,
     String? errorMessage,
     String? imageSizeLabel,
+    double? brightness,
+    double? contrast,
+    double? saturation,
+    bool? isVintage,
   }) =>
       EditorImageState(
         status: status ?? this.status,
@@ -69,6 +75,10 @@ class EditorImageState {
         activeToolIndex: activeToolIndex ?? this.activeToolIndex,
         errorMessage: errorMessage ?? this.errorMessage,
         imageSizeLabel: imageSizeLabel ?? this.imageSizeLabel,
+        brightness: brightness ?? this.brightness,
+        contrast: contrast ?? this.contrast,
+        saturation: saturation ?? this.saturation,
+        isVintage: isVintage ?? this.isVintage,
       );
 
   // Cleared state keeps the status but drops all image data.
@@ -115,7 +125,27 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
 
   void setActiveTool(int index) {
     if (!mounted) return;
-    state = state.copyWith(activeToolIndex: index);
+    state = state.copyWith(activeToolIndex: index == state.activeToolIndex ? -1 : index);
+  }
+
+  void setBrightness(double value) {
+    if (!mounted) return;
+    state = state.copyWith(brightness: value);
+  }
+
+  void setContrast(double value) {
+    if (!mounted) return;
+    state = state.copyWith(contrast: value);
+  }
+
+  void setSaturation(double value) {
+    if (!mounted) return;
+    state = state.copyWith(saturation: value);
+  }
+
+  void setVintage(bool value) {
+    if (!mounted) return;
+    state = state.copyWith(isVintage: value);
   }
 
   void clear() {
@@ -324,15 +354,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
               // ── Toolbar ──────────────────────────────────────────
               if (state.hasImage)
-                _EditorToolbar(
-                  activeIndex: state.activeToolIndex,
-                  isProcessing: state.status == EditorStatus.processing,
-                  onCompress: notifier.compress,
-                  onCrop: () => notifier.setActiveTool(1),
-                  onAdjust: () => notifier.setActiveTool(2),
-                  onFilter: () => notifier.setActiveTool(3),
-                  onText: () => notifier.setActiveTool(4),
-                  onExport: () => _onExport(context, state),
+                Column(
+                  children: [
+                    if (state.activeToolIndex == 2)
+                      _AdjustPanel(state: state, notifier: notifier),
+                    if (state.activeToolIndex == 3)
+                      _FilterPanel(state: state, notifier: notifier),
+                    _EditorToolbar(
+                      activeIndex: state.activeToolIndex,
+                      isProcessing: state.status == EditorStatus.processing,
+                      onCompress: notifier.compress,
+                      onCrop: () => notifier.setActiveTool(1),
+                      onAdjust: () => notifier.setActiveTool(2),
+                      onFilter: () => notifier.setActiveTool(3),
+                      onText: () => notifier.setActiveTool(4),
+                      onExport: () => _onExport(context, state),
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -364,7 +402,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           ),
         EditorStatus.ready when state.hasImage => _ImagePreview(
             key: ValueKey(state.sourceFile!.path),
-            image: state.displayImage!,
+            state: state,
           ),
         EditorStatus.error => _ErrorPreview(
             key: const ValueKey('error'),
@@ -497,11 +535,26 @@ class _GlassIconButton extends StatelessWidget {
 /// [RepaintBoundary] isolates repaints caused by InteractiveViewer so the
 /// rest of the widget tree doesn't repaint on every pinch-zoom frame.
 class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({super.key, required this.image});
-  final ui.Image image;
+  const _ImagePreview({super.key, required this.state});
+  final EditorImageState state;
 
   @override
   Widget build(BuildContext context) {
+    final filters = [
+      if (state.isVintage) ...[
+        ColorFilterAddons.sepia(0.6),
+        ColorFilterAddons.saturation(-0.15),
+        ColorFilterAddons.contrast(0.05),
+      ],
+      if (state.brightness != 0) ColorFilterAddons.brightness(state.brightness),
+      if (state.contrast != 0) ColorFilterAddons.contrast(state.contrast),
+      if (state.saturation != 0) ColorFilterAddons.saturation(state.saturation),
+    ];
+
+    final generator = filters.isEmpty 
+        ? null 
+        : ColorFilterGenerator(name: 'Custom', filters: filters);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -520,11 +573,16 @@ class _ImagePreview extends StatelessWidget {
           child: InteractiveViewer(
             minScale: 0.5,
             maxScale: 8.0,
-            child: RawImage(
-              image: image,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.medium,
-              width: double.infinity,
+            child: Builder(
+              builder: (context) {
+                final raw = RawImage(
+                  image: state.displayImage!,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                  width: double.infinity,
+                );
+                return generator == null ? raw : generator.build(raw);
+              },
             ),
           ),
         ),
@@ -1136,6 +1194,179 @@ class _ToolButton extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Adjust Panel ──────────────────────────────────────────────────────────────
+
+class _AdjustPanel extends StatefulWidget {
+  const _AdjustPanel({required this.state, required this.notifier});
+  final EditorImageState state;
+  final EditorImageNotifier notifier;
+
+  @override
+  State<_AdjustPanel> createState() => _AdjustPanelState();
+}
+
+class _AdjustPanelState extends State<_AdjustPanel> {
+  int _selectedTab = 0; // 0: Brightness, 1: Contrast, 2: Saturation
+
+  @override
+  Widget build(BuildContext context) {
+    double value = 0;
+    ValueChanged<double> onChanged = (v) {};
+
+    if (_selectedTab == 0) {
+      value = widget.state.brightness;
+      // Slider will give values from -1.0 to 1.0, convert mapped logic
+      onChanged = widget.notifier.setBrightness;
+    } else if (_selectedTab == 1) {
+      value = widget.state.contrast;
+      onChanged = widget.notifier.setContrast;
+    } else {
+      value = widget.state.saturation;
+      onChanged = widget.notifier.setSaturation;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMid.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _TabItem(label: 'Brightness', isSelected: _selectedTab == 0, onTap: () => setState(() => _selectedTab = 0)),
+              _TabItem(label: 'Contrast', isSelected: _selectedTab == 1, onTap: () => setState(() => _selectedTab = 1)),
+              _TabItem(label: 'Saturation', isSelected: _selectedTab == 2, onTap: () => setState(() => _selectedTab = 2)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: AppColors.accentPurple,
+              inactiveTrackColor: AppColors.surfaceLight,
+              thumbColor: Colors.white,
+              overlayColor: AppColors.accentPurple.withValues(alpha: 0.2),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: value,
+              min: -1.0,
+              max: 1.0,
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabItem extends StatelessWidget {
+  const _TabItem({required this.label, required this.isSelected, required this.onTap});
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.surfaceLight : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Filter Panel ──────────────────────────────────────────────────────────────
+
+class _FilterPanel extends StatelessWidget {
+  const _FilterPanel({required this.state, required this.notifier});
+  final EditorImageState state;
+  final EditorImageNotifier notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMid.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _PresetCard(
+            label: 'Normal',
+            isSelected: !state.isVintage,
+            onTap: () => notifier.setVintage(false),
+          ),
+          const SizedBox(width: 16),
+          _PresetCard(
+            label: 'Vintage',
+            isSelected: state.isVintage,
+            onTap: () => notifier.setVintage(true),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PresetCard extends StatelessWidget {
+  const _PresetCard({required this.label, required this.isSelected, required this.onTap});
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: isSelected ? AppColors.accentGradient : null,
+          color: isSelected ? null : AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(16),
+          border: isSelected 
+              ? Border.all(color: AppColors.accentPurple.withValues(alpha: 0.5), width: 1)
+              : Border.all(color: Colors.transparent, width: 1),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 14,
+          ),
         ),
       ),
     );
