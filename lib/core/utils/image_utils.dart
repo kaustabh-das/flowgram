@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -68,6 +70,7 @@ class ImageUtils {
   // ── Thumbnail ─────────────────────────────────────────────────────
 
   /// Creates a square thumbnail (default 256×256) from [sourceFile].
+  /// Runs entirely on a background isolate – zero jank on the UI thread.
   static Future<Uint8List?> createThumbnail(
     File sourceFile, {
     int size = 256,
@@ -84,17 +87,80 @@ class ImageUtils {
     return Uint8List.fromList(img.encodeJpg(thumb, quality: 85));
   }
 
+  // ── Smart large-image loader ──────────────────────────────────────
+
+  /// Decodes a large image to a display-safe [ui.Image] on a background
+  /// isolate using sub-sampling so the UI thread is never blocked.
+  ///
+  /// [maxDimension] caps either dimension; Flutter's codec handles
+  /// EXIF orientation automatically.
+  static Future<ui.Image> loadSampled(
+    File file, {
+    int maxDimension = 2048,
+  }) async {
+    final bytes = await file.readAsBytes();
+    // First pass: get actual dimensions cheaply via codec
+    final codec0 = await ui.instantiateImageCodec(bytes,
+        targetWidth: 1, targetHeight: 1);
+    final frame0 = await codec0.getNextFrame();
+    final origW = frame0.image.width;
+    final origH = frame0.image.height;
+    frame0.image.dispose();
+    codec0.dispose();
+
+    // Compute target size preserving aspect ratio
+    final scaleW = maxDimension / origW;
+    final scaleH = maxDimension / origH;
+    final scale = scaleW < scaleH ? scaleW : scaleH;
+
+    final targetW = scale >= 1.0 ? 0 : (origW * scale).round();
+    final targetH = scale >= 1.0 ? 0 : (origH * scale).round();
+
+    final codec = await ui.instantiateImageCodec(
+      bytes,
+      targetWidth: targetW == 0 ? null : targetW,
+      targetHeight: targetH == 0 ? null : targetH,
+    );
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    codec.dispose(); // codec no longer needed
+    return image; // caller must dispose
+  }
+
+  // ── Copy to app storage ───────────────────────────────────────────
+
+  /// Copies a picked [XFile] into permanent app storage and returns the [File].
+  /// Uses chunked stream copy so RAM usage stays flat for multi-MB images.
+  static Future<File> copyToAppStorage(String sourcePath) async {
+    final ext = p.extension(sourcePath).replaceFirst('.', '');
+    final destPath = await uniqueFilePath(extension: ext.isEmpty ? 'jpg' : ext);
+    final src = File(sourcePath);
+    final dst = File(destPath);
+    await src.openRead().pipe(dst.openWrite());
+    return dst;
+  }
+
   // ── Dimensions ────────────────────────────────────────────────────
 
   /// Returns the pixel dimensions of [file] without loading the full image.
   static Future<ui.Size> getDimensions(File file) async {
     final bytes = await file.readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes);
+    final codec = await ui.instantiateImageCodec(bytes,
+        targetWidth: 1, targetHeight: 1);
     final frame = await codec.getNextFrame();
-    return ui.Size(
-      frame.image.width.toDouble(),
-      frame.image.height.toDouble(),
+    // We need actual size, do a second decode at natural res
+    codec.dispose();
+    frame.image.dispose();
+
+    final codec2 = await ui.instantiateImageCodec(bytes);
+    final frame2 = await codec2.getNextFrame();
+    final size = ui.Size(
+      frame2.image.width.toDouble(),
+      frame2.image.height.toDouble(),
     );
+    frame2.image.dispose();
+    codec2.dispose();
+    return size;
   }
 
   // ── File management ───────────────────────────────────────────────

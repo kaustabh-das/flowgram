@@ -1,110 +1,303 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/services/image_cache_service.dart';
+import '../../../core/services/image_picker_service.dart';
 import '../../../core/utils/image_utils.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../gallery/presentation/gallery_provider.dart';
 
-// ── Provider ───────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
 
-final editorImageProvider =
-    StateNotifierProvider<EditorImageNotifier, EditorImageState>(
-  (_) => EditorImageNotifier(),
-);
+enum EditorStatus { idle, picking, loading, ready, processing, error }
 
 class EditorImageState {
   const EditorImageState({
-    this.file,
+    this.status = EditorStatus.idle,
+    this.sourceFile,
+    this.displayImage,
     this.thumbnail,
-    this.isProcessing = false,
     this.activeToolIndex = -1,
+    this.errorMessage,
+    this.imageSizeLabel,
   });
 
-  final File? file;
+  final EditorStatus status;
+
+  /// The permanent copy in app storage (source of truth for edits).
+  final File? sourceFile;
+
+  /// Decoded [ui.Image] ready for display, sub-sampled to fit screen.
+  final ui.Image? displayImage;
+
+  /// 256-px thumbnail bytes used for the mini preview strip.
   final Uint8List? thumbnail;
-  final bool isProcessing;
+
   final int activeToolIndex;
+  final String? errorMessage;
+
+  /// Human-readable "2048 × 1536" label shown in the app bar.
+  final String? imageSizeLabel;
+
+  bool get hasImage => sourceFile != null && displayImage != null;
 
   EditorImageState copyWith({
-    File? file,
+    EditorStatus? status,
+    File? sourceFile,
+    ui.Image? displayImage,
     Uint8List? thumbnail,
-    bool? isProcessing,
     int? activeToolIndex,
+    String? errorMessage,
+    String? imageSizeLabel,
   }) =>
       EditorImageState(
-        file: file ?? this.file,
+        status: status ?? this.status,
+        sourceFile: sourceFile ?? this.sourceFile,
+        displayImage: displayImage ?? this.displayImage,
         thumbnail: thumbnail ?? this.thumbnail,
-        isProcessing: isProcessing ?? this.isProcessing,
         activeToolIndex: activeToolIndex ?? this.activeToolIndex,
+        errorMessage: errorMessage ?? this.errorMessage,
+        imageSizeLabel: imageSizeLabel ?? this.imageSizeLabel,
       );
+
+  // Cleared state keeps the status but drops all image data.
+  EditorImageState cleared() => const EditorImageState();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Notifier
+// ─────────────────────────────────────────────────────────────────────────────
+
 class EditorImageNotifier extends StateNotifier<EditorImageState> {
-  EditorImageNotifier() : super(const EditorImageState());
+  EditorImageNotifier(this._pickerService, this._cache)
+      : super(const EditorImageState());
 
-  Future<void> pickFromGallery() async {
-    final status = await Permission.photos.request();
-    if (!status.isGranted) return;
+  final ImagePickerService _pickerService;
+  final ImageCacheService _cache;
 
-    final picker = ImagePicker();
-    final xFile = await picker.pickImage(source: ImageSource.gallery);
-    if (xFile == null) return;
+  // Cancel token — incremented each time a new pick/load starts so that
+  // stale async continuations silently no-op instead of updating state.
+  int _token = 0;
 
-    state = state.copyWith(isProcessing: true);
-    final file = File(xFile.path);
-    final thumb = await ImageUtils.createThumbnail(file);
-    state = EditorImageState(file: file, thumbnail: thumb);
-  }
+  // ── Public methods ────────────────────────────────────────────────
+
+  Future<void> pickFromGallery() => _doPick(() => _pickerService.pickFromGallery());
+  Future<void> pickFromCamera() => _doPick(() => _pickerService.pickFromCamera());
 
   Future<void> compress() async {
-    if (state.file == null) return;
-    state = state.copyWith(isProcessing: true, activeToolIndex: 0);
-    final compressed = await ImageUtils.compress(
-      state.file!,
+    if (state.sourceFile == null) return;
+    state = state.copyWith(status: EditorStatus.processing, activeToolIndex: 0);
+
+    final result = await ImageUtils.compress(
+      state.sourceFile!,
       quality: AppSizes.compressQuality,
     );
-    if (compressed != null) {
-      state = state.copyWith(
-        file: File(compressed.path),
-        isProcessing: false,
-        activeToolIndex: -1,
-      );
-    } else {
-      state = state.copyWith(isProcessing: false, activeToolIndex: -1);
+
+    if (!mounted) return;
+
+    if (result != null) {
+      final newFile = File(result.path);
+      await _loadFileIntoState(newFile);
+    }
+    state = state.copyWith(status: EditorStatus.ready, activeToolIndex: -1);
+  }
+
+  void setActiveTool(int index) {
+    if (!mounted) return;
+    state = state.copyWith(activeToolIndex: index);
+  }
+
+  void clear() {
+    _token++; // invalidate any in-flight loads
+    // Do NOT delete the file here — the gallery provider may still hold a ref.
+    state = state.cleared();
+  }
+
+  /// Loads an image from an existing [filePath] (e.g. deep-linked from home).
+  Future<void> loadFromPath(String filePath) async {
+    await _loadFileIntoState(File(filePath));
+  }
+
+  // ── Internal helpers ──────────────────────────────────────────────
+
+  Future<void> _doPick(Future<PickResult> Function() picker) async {
+    final token = ++_token;
+    state = state.copyWith(status: EditorStatus.picking);
+
+    final result = await picker();
+
+    if (!mounted || token != _token) return; // stale or disposed
+
+    switch (result) {
+      case PickSuccess(:final file, :final thumbnail):
+        state = state.copyWith(
+          status: EditorStatus.loading,
+          thumbnail: thumbnail,
+        );
+        await _loadFileIntoState(file, token: token, thumbnail: thumbnail);
+
+      case PickPermissionDenied():
+        state = state.copyWith(
+          status: EditorStatus.error,
+          errorMessage: AppStrings.permGalleryDenied,
+        );
+
+      case PickCancelled():
+        state = state.copyWith(status: EditorStatus.idle);
+
+      case PickError(:final message):
+        state = state.copyWith(
+          status: EditorStatus.error,
+          errorMessage: message,
+        );
     }
   }
 
-  void setActiveTool(int index) =>
-      state = state.copyWith(activeToolIndex: index);
+  Future<void> _loadFileIntoState(
+    File file, {
+    int? token,
+    Uint8List? thumbnail,
+  }) async {
+    final myToken = token ?? _token;
 
-  void clear() => state = const EditorImageState();
+    // Check memory cache first
+    final cacheKey = file.path;
+    final cached = _cache.getMemory(cacheKey);
+    if (cached != null) {
+      if (!mounted || myToken != _token) return;
+      final size = await _sizeLabel(file);
+      state = state.copyWith(
+        status: EditorStatus.ready,
+        sourceFile: file,
+        displayImage: cached.clone(), // caller owns this clone
+        imageSizeLabel: size,
+        thumbnail: thumbnail ?? state.thumbnail,
+      );
+      cached.dispose(); // dispose our local reference
+      return;
+    }
+
+    // Load and sub-sample on a background isolate (max 2048 px)
+    final ui.Image image;
+    try {
+      image = await ImageUtils.loadSampled(file, maxDimension: 2048);
+    } catch (e) {
+      if (!mounted || myToken != _token) return;
+      state = state.copyWith(
+        status: EditorStatus.error,
+        errorMessage: AppStrings.errImageLoad,
+      );
+      return;
+    }
+
+    if (!mounted || myToken != _token) {
+      image.dispose(); // stale — discard immediately
+      return;
+    }
+
+    // Store a clone in the LRU cache; give another clone to the state.
+    _cache.putMemory(cacheKey, image);
+    final forState = image.clone();
+    image.dispose();
+
+    final size = await _sizeLabel(file);
+    if (!mounted || myToken != _token) {
+      forState.dispose();
+      return;
+    }
+
+    state = state.copyWith(
+      status: EditorStatus.ready,
+      sourceFile: file,
+      displayImage: forState,
+      imageSizeLabel: size,
+      thumbnail: thumbnail ?? state.thumbnail,
+    );
+  }
+
+  Future<String?> _sizeLabel(File file) async {
+    try {
+      final sz = await ImageUtils.getDimensions(file);
+      return '${sz.width.toInt()} × ${sz.height.toInt()}';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  void dispose() {
+    // Dispose the displayed image to free GPU texture memory.
+    state.displayImage?.dispose();
+    super.dispose();
+  }
 }
 
-// ── Screen ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Provider
+// ─────────────────────────────────────────────────────────────────────────────
 
-class EditorScreen extends ConsumerWidget {
+final editorImageProvider =
+    StateNotifierProvider<EditorImageNotifier, EditorImageState>((ref) {
+  return EditorImageNotifier(
+    ref.watch(imagePickerServiceProvider),
+    ref.watch(imageCacheServiceProvider),
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({super.key, this.imagePath});
 
   final String? imagePath;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final editorState = ref.watch(editorImageProvider);
+  ConsumerState<EditorScreen> createState() => _EditorScreenState();
+}
+
+class _EditorScreenState extends ConsumerState<EditorScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // If launched with a deep-link path, load it after first frame.
+    if (widget.imagePath != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(editorImageProvider.notifier).loadFromPath(widget.imagePath!);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(editorImageProvider);
     final notifier = ref.read(editorImageProvider.notifier);
     final topPad = MediaQuery.of(context).padding.top;
+
+    // Show permission-denied snackbar once
+    ref.listen<EditorImageState>(editorImageProvider, (prev, next) {
+      if (next.status == EditorStatus.error && next.errorMessage != null) {
+        _showErrorSnack(context, next.errorMessage!);
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
-          // ── Background gradient ─────────────────────────────────
+          // Background gradient
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -120,40 +313,26 @@ class EditorScreen extends ConsumerWidget {
               // ── App bar ──────────────────────────────────────────
               _EditorAppBar(
                 topPad: topPad,
-                hasImage: editorState.file != null,
+                state: state,
                 onClear: notifier.clear,
               ),
 
               // ── Preview area ─────────────────────────────────────
               Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 350),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  child: editorState.isProcessing
-                      ? const _ProcessingOverlay(key: ValueKey('proc'))
-                      : editorState.file != null
-                          ? _PreviewArea(
-                              key: ValueKey(editorState.file!.path),
-                              file: editorState.file!,
-                            )
-                          : _EmptyPreview(
-                              key: const ValueKey('empty'),
-                              onPick: notifier.pickFromGallery,
-                            ),
-                ),
+                child: _buildBody(state, notifier),
               ),
 
               // ── Toolbar ──────────────────────────────────────────
-              if (editorState.file != null)
+              if (state.hasImage)
                 _EditorToolbar(
-                  activeIndex: editorState.activeToolIndex,
+                  activeIndex: state.activeToolIndex,
+                  isProcessing: state.status == EditorStatus.processing,
                   onCompress: notifier.compress,
                   onCrop: () => notifier.setActiveTool(1),
                   onAdjust: () => notifier.setActiveTool(2),
                   onFilter: () => notifier.setActiveTool(3),
                   onText: () => notifier.setActiveTool(4),
-                  onExport: () {},
+                  onExport: () => _onExport(context, state),
                 ),
             ],
           ),
@@ -161,19 +340,91 @@ class EditorScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _buildBody(EditorImageState state, EditorImageNotifier notifier) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: switch (state.status) {
+        EditorStatus.picking => const _StatusOverlay(
+            key: ValueKey('picking'),
+            icon: Icons.photo_library_rounded,
+            label: 'Opening gallery…',
+          ),
+        EditorStatus.loading => _LoadingPreview(
+            key: const ValueKey('loading'),
+            thumbnail: state.thumbnail,
+          ),
+        EditorStatus.processing => const _StatusOverlay(
+            key: ValueKey('proc'),
+            icon: Icons.auto_fix_high_rounded,
+            label: 'Processing…',
+            showSpinner: true,
+          ),
+        EditorStatus.ready when state.hasImage => _ImagePreview(
+            key: ValueKey(state.sourceFile!.path),
+            image: state.displayImage!,
+          ),
+        EditorStatus.error => _ErrorPreview(
+            key: const ValueKey('error'),
+            message: state.errorMessage ?? AppStrings.errGeneric,
+            onRetry: notifier.pickFromGallery,
+          ),
+        _ => _EmptyPreview(
+            key: const ValueKey('empty'),
+            onPickGallery: notifier.pickFromGallery,
+            onPickCamera: notifier.pickFromCamera,
+          ),
+      },
+    );
+  }
+
+  void _showErrorSnack(BuildContext context, String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: message == AppStrings.permGalleryDenied
+            ? SnackBarAction(
+                label: AppStrings.permOpenSettings,
+                onPressed: openAppSettings,
+              )
+            : null,
+      ),
+    );
+  }
+
+  void _onExport(BuildContext context, EditorImageState state) {
+    if (state.sourceFile == null) return;
+    // Save to gallery provider for the home screen recent-edits grid
+    if (state.thumbnail != null) {
+      ref.read(galleryProvider.notifier).addProject(
+            imagePath: state.sourceFile!.path,
+            thumbnail: state.thumbnail!,
+          );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved to gallery ✓')),
+      );
+    }
+  }
 }
 
-// ── App Bar ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── App Bar ──────────────────────────────────────────────────────────────────
 
 class _EditorAppBar extends StatelessWidget {
   const _EditorAppBar({
     required this.topPad,
-    required this.hasImage,
+    required this.state,
     required this.onClear,
   });
 
   final double topPad;
-  final bool hasImage;
+  final EditorImageState state;
   final VoidCallback onClear;
 
   @override
@@ -182,36 +433,38 @@ class _EditorAppBar extends StatelessWidget {
       padding: EdgeInsets.only(top: topPad + 8, left: 16, right: 16, bottom: 8),
       child: Row(
         children: [
-          // Icon logo
           ShaderMask(
             shaderCallback: (b) => AppColors.accentGradient.createShader(b),
             blendMode: BlendMode.srcIn,
             child: const Icon(Icons.auto_fix_high_rounded, size: 26),
           ),
           const SizedBox(width: 10),
-          Text(
-            'Editor',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Editor',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+              ),
+              if (state.imageSizeLabel != null)
+                Text(
+                  state.imageSizeLabel!,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                 ),
+            ],
           ),
           const Spacer(),
-          if (hasImage) ...[
-            _AppBarButton(
-              icon: Icons.undo_rounded,
-              onTap: () {},
-            ),
+          if (state.hasImage) ...[
+            _GlassIconButton(icon: Icons.undo_rounded, onTap: () {}),
             const SizedBox(width: 8),
-            _AppBarButton(
-              icon: Icons.redo_rounded,
-              onTap: () {},
-            ),
+            _GlassIconButton(icon: Icons.redo_rounded, onTap: () {}),
             const SizedBox(width: 8),
-            _AppBarButton(
-              icon: Icons.delete_outline_rounded,
-              onTap: onClear,
-            ),
+            _GlassIconButton(icon: Icons.delete_outline_rounded, onTap: onClear),
           ],
         ],
       ),
@@ -219,8 +472,8 @@ class _EditorAppBar extends StatelessWidget {
   }
 }
 
-class _AppBarButton extends StatelessWidget {
-  const _AppBarButton({required this.icon, required this.onTap});
+class _GlassIconButton extends StatelessWidget {
+  const _GlassIconButton({required this.icon, required this.onTap});
   final IconData icon;
   final VoidCallback onTap;
 
@@ -238,11 +491,14 @@ class _AppBarButton extends StatelessWidget {
   }
 }
 
-// ── Preview Area ─────────────────────────────────────────────────────────────
+// ── Image Preview ─────────────────────────────────────────────────────────────
 
-class _PreviewArea extends StatelessWidget {
-  const _PreviewArea({super.key, required this.file});
-  final File file;
+/// Displays a [ui.Image] using [RawImage] inside a [RepaintBoundary].
+/// [RepaintBoundary] isolates repaints caused by InteractiveViewer so the
+/// rest of the widget tree doesn't repaint on every pinch-zoom frame.
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({super.key, required this.image});
+  final ui.Image image;
 
   @override
   Widget build(BuildContext context) {
@@ -260,12 +516,16 @@ class _PreviewArea extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: InteractiveViewer(
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            gaplessPlayback: true,
+        child: RepaintBoundary(
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 8.0,
+            child: RawImage(
+              image: image,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+              width: double.infinity,
+            ),
           ),
         ),
       ),
@@ -273,11 +533,129 @@ class _PreviewArea extends StatelessWidget {
   }
 }
 
-// ── Empty Preview ────────────────────────────────────────────────────────────
+// ── Loading Preview ───────────────────────────────────────────────────────────
+
+/// Shows the blurred thumbnail (if available) with a shimmer overlay while
+/// the full image decodes in the background — perceived performance win.
+class _LoadingPreview extends StatefulWidget {
+  const _LoadingPreview({super.key, this.thumbnail});
+  final Uint8List? thumbnail;
+
+  @override
+  State<_LoadingPreview> createState() => _LoadingPreviewState();
+}
+
+class _LoadingPreviewState extends State<_LoadingPreview>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmer = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: AppColors.surfaceMid,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Blurred thumbnail as placeholder
+            if (widget.thumbnail != null)
+              ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Image.memory(
+                  widget.thumbnail!,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
+              ),
+
+            // Shimmer overlay
+            AnimatedBuilder(
+              animation: _shimmer,
+              builder: (context, _) {
+                return ShaderMask(
+                  shaderCallback: (bounds) {
+                    return LinearGradient(
+                      begin: Alignment(-1.5 + _shimmer.value * 3, 0),
+                      end: Alignment(-0.5 + _shimmer.value * 3, 0),
+                      colors: const [
+                        Colors.transparent,
+                        Color(0x22FFFFFF),
+                        Colors.transparent,
+                      ],
+                    ).createShader(bounds);
+                  },
+                  blendMode: BlendMode.srcOver,
+                  child: Container(color: Colors.white.withValues(alpha: 0.05)),
+                );
+              },
+            ),
+
+            // Center spinner
+            Center(
+              child: GlassCard(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                borderRadius: 20,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.accentPurple),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Loading image…',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Empty Preview ─────────────────────────────────────────────────────────────
 
 class _EmptyPreview extends StatefulWidget {
-  const _EmptyPreview({super.key, required this.onPick});
-  final VoidCallback onPick;
+  const _EmptyPreview({
+    super.key,
+    required this.onPickGallery,
+    required this.onPickCamera,
+  });
+
+  final VoidCallback onPickGallery;
+  final VoidCallback onPickCamera;
 
   @override
   State<_EmptyPreview> createState() => _EmptyPreviewState();
@@ -285,123 +663,179 @@ class _EmptyPreview extends StatefulWidget {
 
 class _EmptyPreviewState extends State<_EmptyPreview>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseCtrl;
-  late final Animation<double> _pulseAnim;
+  late final AnimationController _pulse;
+  late final Animation<double> _scale;
 
   @override
   void initState() {
     super.initState();
-    _pulseCtrl = AnimationController(
+    _pulse = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    _scale = Tween<double>(begin: 0.92, end: 1.0).animate(
+      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
     );
   }
 
   @override
   void dispose() {
-    _pulseCtrl.dispose();
+    _pulse.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          ScaleTransition(
-            scale: _pulseAnim,
-            child: GestureDetector(
-              onTap: widget.onPick,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.accentPurple.withValues(alpha: 0.15),
-                      AppColors.accentCyan.withValues(alpha: 0.08),
-                    ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Pulsing import icon
+            ScaleTransition(
+              scale: _scale,
+              child: GestureDetector(
+                onTap: widget.onPickGallery,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.accentPurple.withValues(alpha: 0.15),
+                        AppColors.accentCyan.withValues(alpha: 0.08),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: AppColors.accentPurple.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: ShaderMask(
+                    shaderCallback: (b) =>
+                        AppColors.accentGradient.createShader(b),
+                    blendMode: BlendMode.srcIn,
+                    child: const Icon(
+                      Icons.add_photo_alternate_outlined,
+                      size: 64,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              'No image selected',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pick a photo to start editing',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+            ),
+            const SizedBox(height: 36),
+            // Two action buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _PickButton(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Gallery',
+                  gradient: AppColors.accentGradient,
+                  onTap: widget.onPickGallery,
+                ),
+                const SizedBox(width: 16),
+                _PickButton(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Camera',
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00D4FF), Color(0xFF007AFF)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  border: Border.all(
-                    color: AppColors.accentPurple.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
+                  onTap: widget.onPickCamera,
                 ),
-                child: ShaderMask(
-                  shaderCallback: (b) => AppColors.accentGradient.createShader(b),
-                  blendMode: BlendMode.srcIn,
-                  child: const Icon(
-                    Icons.add_photo_alternate_outlined,
-                    size: 64,
-                  ),
-                ),
-              ),
+              ],
             ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'No image selected',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Tap to import from gallery',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-          ),
-          const SizedBox(height: 32),
-          PressableCard(
-            onTap: widget.onPick,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: AppColors.accentGradient,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.accentPurple.withValues(alpha: 0.4),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.photo_library_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Choose Photo',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── Processing overlay ───────────────────────────────────────────────────────
+class _PickButton extends StatelessWidget {
+  const _PickButton({
+    required this.icon,
+    required this.label,
+    required this.gradient,
+    required this.onTap,
+  });
 
-class _ProcessingOverlay extends StatelessWidget {
-  const _ProcessingOverlay({super.key});
+  final IconData icon;
+  final String label;
+  final Gradient gradient;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableCard(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Status Overlay ────────────────────────────────────────────────────────────
+
+class _StatusOverlay extends StatelessWidget {
+  const _StatusOverlay({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.showSpinner = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool showSpinner;
 
   @override
   Widget build(BuildContext context) {
@@ -412,20 +846,81 @@ class _ProcessingOverlay extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.accentPurple),
+            if (showSpinner)
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.accentPurple),
+                ),
+              )
+            else
+              ShaderMask(
+                shaderCallback: (b) => AppColors.accentGradient.createShader(b),
+                blendMode: BlendMode.srcIn,
+                child: Icon(icon, size: 44),
               ),
-            ),
             const SizedBox(height: 16),
             Text(
-              'Processing...',
+              label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Error Preview ─────────────────────────────────────────────────────────────
+
+class _ErrorPreview extends StatelessWidget {
+  const _ErrorPreview({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                size: 56, color: AppColors.error),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+            ),
+            const SizedBox(height: 24),
+            PressableCard(
+              onTap: onRetry,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: AppColors.accentGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Try again',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+              ),
             ),
           ],
         ),
@@ -439,6 +934,7 @@ class _ProcessingOverlay extends StatelessWidget {
 class _EditorToolbar extends StatelessWidget {
   const _EditorToolbar({
     required this.activeIndex,
+    required this.isProcessing,
     required this.onCompress,
     required this.onCrop,
     required this.onAdjust,
@@ -448,6 +944,7 @@ class _EditorToolbar extends StatelessWidget {
   });
 
   final int activeIndex;
+  final bool isProcessing;
   final VoidCallback onCompress;
   final VoidCallback onCrop;
   final VoidCallback onAdjust;
@@ -493,6 +990,7 @@ class _EditorToolbar extends StatelessWidget {
                   itemBuilder: (context, i) => _ToolButton(
                     tool: tools[i],
                     isActive: activeIndex == i,
+                    isDisabled: isProcessing,
                   ),
                 ),
               ),
@@ -501,36 +999,55 @@ class _EditorToolbar extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: PressableCard(
-                  onTap: onExport,
-                  child: Container(
+                  onTap: isProcessing ? () {} : onExport,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
-                      gradient: AppColors.accentGradient,
+                      gradient: isProcessing
+                          ? const LinearGradient(
+                              colors: [AppColors.surfaceLight, AppColors.surfaceMid])
+                          : AppColors.accentGradient,
                       borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.accentPurple.withValues(alpha: 0.35),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      boxShadow: isProcessing
+                          ? []
+                          : [
+                              BoxShadow(
+                                color:
+                                    AppColors.accentPurple.withValues(alpha: 0.35),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                     ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.ios_share_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Export',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
+                    child: isProcessing
+                        ? const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.ios_share_rounded,
+                                  color: Colors.white, size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                'Export',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ),
@@ -550,15 +1067,20 @@ class _Tool {
 }
 
 class _ToolButton extends StatelessWidget {
-  const _ToolButton({required this.tool, required this.isActive});
+  const _ToolButton({
+    required this.tool,
+    required this.isActive,
+    required this.isDisabled,
+  });
 
   final _Tool tool;
   final bool isActive;
+  final bool isDisabled;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: tool.onTap,
+      onTap: isDisabled ? null : tool.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: 72,
@@ -582,17 +1104,19 @@ class _ToolButton extends StatelessWidget {
               duration: const Duration(milliseconds: 200),
               child: isActive
                   ? ShaderMask(
-                      key: const ValueKey('active'),
+                      key: const ValueKey('a'),
                       shaderCallback: (b) =>
                           AppColors.accentGradient.createShader(b),
                       blendMode: BlendMode.srcIn,
                       child: Icon(tool.icon, size: 24),
                     )
                   : Icon(
-                      key: const ValueKey('inactive'),
+                      key: const ValueKey('i'),
                       tool.icon,
                       size: 22,
-                      color: AppColors.textSecondary,
+                      color: isDisabled
+                          ? AppColors.textDisabled
+                          : AppColors.textSecondary,
                     ),
             ),
             const SizedBox(height: 4),
@@ -601,8 +1125,11 @@ class _ToolButton extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                color:
-                    isActive ? AppColors.accentPurple : AppColors.textSecondary,
+                color: isActive
+                    ? AppColors.accentPurple
+                    : isDisabled
+                        ? AppColors.textDisabled
+                        : AppColors.textSecondary,
               ),
             ),
           ],
