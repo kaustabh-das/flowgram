@@ -159,7 +159,13 @@ class _TemplatesScreenState extends State<TemplatesScreen>
               opacity: _fadeCtrl,
               child: _TemplateGrid(
                 templates: _filtered,
-                onUse: (template) => context.go(AppRoutes.editor),
+                onUse: (template) {
+                  // For demonstration, map 'Cinematic Noir' to filmstrip, else split.
+                  final layoutId = template.name == 'Cinematic Noir' 
+                      ? 'story_filmstrip' 
+                      : 'story_split';
+                  context.push('${AppRoutes.storyEditor}?layoutId=$layoutId');
+                },
               ),
             ),
           ),
