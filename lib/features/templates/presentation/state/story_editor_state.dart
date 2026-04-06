@@ -6,21 +6,25 @@ class CollageSlotData {
     this.imagePath,
     this.offset = Offset.zero,
     this.scale = 1.0,
+    this.isLoading = false,
   });
 
   final String? imagePath;
   final Offset offset;
   final double scale;
+  final bool isLoading;
 
   CollageSlotData copyWith({
     String? imagePath,
     Offset? offset,
     double? scale,
+    bool? isLoading,
   }) {
     return CollageSlotData(
       imagePath: imagePath ?? this.imagePath,
       offset: offset ?? this.offset,
       scale: scale ?? this.scale,
+      isLoading: isLoading ?? this.isLoading,
     );
   }
 }
@@ -57,7 +61,15 @@ class StoryEditorNotifier extends AutoDisposeNotifier<StoryEditorState> {
       imagePath: imagePath,
       offset: Offset.zero,
       scale: 1.0, 
+      isLoading: false,
     );
+    state = state.copyWith(slots: updatedSlots);
+  }
+
+  void setLoading(String slotId, bool isLoading) {
+    final currentSlot = state.slots[slotId] ?? const CollageSlotData();
+    final updatedSlots = Map<String, CollageSlotData>.from(state.slots);
+    updatedSlots[slotId] = currentSlot.copyWith(isLoading: isLoading);
     state = state.copyWith(slots: updatedSlots);
   }
 

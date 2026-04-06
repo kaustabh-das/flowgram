@@ -68,7 +68,7 @@ class _StoryEditorScreenState extends ConsumerState<StoryEditorScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close_rounded, color: Colors.white),
-          onTap: () => context.pop(),
+          onPressed: () => context.pop(),
         ),
         title: Text(
           _layout.name,
@@ -138,44 +138,42 @@ class _CollageSlotWidget extends ConsumerWidget {
       top: canvasSize.height * slot.top,
       width: absoluteWidth,
       height: absoluteHeight,
-      child: GestureDetector(
-        onScaleUpdate: (details) {
-          if (slotData?.imagePath == null) return;
-          ref.read(storyEditorProvider.notifier).updateTransform(
-            slot.id, 
-            details.focalPointDelta, 
-            details.scale,
-          );
-        },
-        onTap: () async {
-          if (slotData?.imagePath == null) {
-            final result = await ref.read(imagePickerServiceProvider).pickFromGallery();
-            if (result is PickSuccess) {
-              ref.read(storyEditorProvider.notifier).setImage(slot.id, result.file.path);
-            }
-          }
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            color: Colors.black12,
-            child: slotData?.imagePath != null
-                ? SizedBox.expand(
-                    child: Transform.translate(
-                      offset: slotData!.offset,
-                      child: Transform.scale(
-                        scale: slotData.scale,
-                        child: Image.file(
-                          File(slotData.imagePath!),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  )
-                : const Center(
-                    child: Icon(Icons.add_photo_alternate_rounded, color: Colors.black38, size: 32),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          color: Colors.black12,
+          child: slotData?.imagePath != null
+              ? InteractiveViewer(
+                  panEnabled: true,
+                  scaleEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 10.0,
+                  clipBehavior: Clip.none,
+                  child: Image.file(
+                    File(slotData!.imagePath!),
+                    fit: BoxFit.contain, // Allows user to see whole image, then pinch to cover
                   ),
-          ),
+                )
+              : GestureDetector(
+                  onTap: () async {
+                    // Prevent multiple taps while loading
+                    if (slotData?.isLoading == true) return;
+                    
+                    ref.read(storyEditorProvider.notifier).setLoading(slot.id, true);
+                    final result = await ref.read(imagePickerServiceProvider).pickFromGallery();
+                    if (result is PickSuccess) {
+                      ref.read(storyEditorProvider.notifier).setImage(slot.id, result.file.path);
+                    } else {
+                      // If cancelled or failed, stop loading
+                      ref.read(storyEditorProvider.notifier).setLoading(slot.id, false);
+                    }
+                  },
+                  child: Center(
+                    child: slotData?.isLoading == true
+                        ? const CircularProgressIndicator(color: AppColors.accentCyan)
+                        : const Icon(Icons.add_photo_alternate_rounded, color: Colors.black38, size: 32),
+                  ),
+                ),
         ),
       ),
     );
