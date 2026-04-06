@@ -349,6 +349,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 topPad: topPad,
                 state: state,
                 onClear: notifier.clear,
+                onSave: () => _onSaveToProjects(context, state),
               ),
 
               // ── Preview area ─────────────────────────────────────
@@ -440,6 +441,38 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
+  Future<void> _onSaveToProjects(BuildContext context, EditorImageState state) async {
+    if (state.sourceFile == null) return;
+    try {
+      final boundary = _previewBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      ref.read(galleryProvider.notifier).addProject(
+            imagePath: state.sourceFile!.path,
+            thumbnail: state.thumbnail ?? pngBytes,
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Saved to Projects! ✓'),
+            backgroundColor: AppColors.accentCyan,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save error: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _onExport(BuildContext context, EditorImageState state) async {
     if (state.sourceFile == null) return;
     
@@ -492,11 +525,13 @@ class _EditorAppBar extends StatelessWidget {
     required this.topPad,
     required this.state,
     required this.onClear,
+    required this.onSave,
   });
 
   final double topPad;
   final EditorImageState state;
   final VoidCallback onClear;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -531,6 +566,8 @@ class _EditorAppBar extends StatelessWidget {
           ),
           const Spacer(),
           if (state.hasImage) ...[
+            _GlassIconButton(icon: Icons.save_rounded, onTap: onSave),
+            const SizedBox(width: 8),
             _GlassIconButton(icon: Icons.undo_rounded, onTap: () {}),
             const SizedBox(width: 8),
             _GlassIconButton(icon: Icons.redo_rounded, onTap: () {}),

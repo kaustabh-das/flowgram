@@ -12,12 +12,14 @@ class AppShell extends StatelessWidget {
 
   static const _routes = [
     AppRoutes.home,
-    AppRoutes.editor,
+    AppRoutes.video,
     AppRoutes.templates,
+    AppRoutes.projects,
   ];
 
   int _routeToIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
+    if (location.startsWith(AppRoutes.editor) || location.startsWith(AppRoutes.storyEditor)) return -1;
     for (int i = _routes.length - 1; i >= 0; i--) {
       if (location.startsWith(_routes[i])) return i;
     }
@@ -53,7 +55,7 @@ class AppShell extends StatelessWidget {
           border: Border(top: BorderSide(color: Colors.white10, width: 1)),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _AnimatedNavItem(
               icon: Icons.image_outlined,
@@ -62,13 +64,27 @@ class AppShell extends StatelessWidget {
               isSelected: currentIndex == 0,
               onTap: () => context.go(AppRoutes.home),
             ),
+            _AnimatedNavItem(
+              icon: Icons.play_circle_outline_rounded,
+              activeIcon: Icons.play_circle_filled_rounded,
+              label: 'Video',
+              isSelected: currentIndex == 1,
+              onTap: () => context.go(AppRoutes.video),
+            ),
             const SizedBox(width: 48), 
             _AnimatedNavItem(
               icon: Icons.bolt_outlined,
               activeIcon: Icons.bolt_rounded,
-              label: 'Ai Effects',
+              label: 'Templates',
               isSelected: currentIndex == 2,
               onTap: () => context.go(AppRoutes.templates),
+            ),
+            _AnimatedNavItem(
+              icon: Icons.folder_outlined,
+              activeIcon: Icons.folder_rounded,
+              label: 'Projects',
+              isSelected: currentIndex == 3,
+              onTap: () => context.go(AppRoutes.projects),
             ),
           ],
         ),
@@ -98,7 +114,7 @@ class _AnimatedNavItem extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 80,
+        width: 70,
         height: 64,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

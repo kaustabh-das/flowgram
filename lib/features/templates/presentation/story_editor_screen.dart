@@ -9,8 +9,10 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/services/image_picker_service.dart';
 import '../../../core/services/export_service.dart';
+import '../../gallery/presentation/gallery_provider.dart';
 import '../domain/collage_layout.dart';
 import 'state/story_editor_state.dart';
+import 'package:path_provider/path_provider.dart';
 
 class StoryEditorScreen extends ConsumerStatefulWidget {
   const StoryEditorScreen({super.key, required this.layoutId});
@@ -63,6 +65,41 @@ class _StoryEditorScreenState extends ConsumerState<StoryEditorScreen> {
     }
   }
 
+  Future<void> _saveToProjects() async {
+    try {
+      final boundary = _boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 1.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/project_${DateTime.now().millisecondsSinceEpoch}.png');
+      await file.writeAsBytes(pngBytes);
+
+      ref.read(galleryProvider.notifier).addProject(
+            imagePath: file.path,
+            thumbnail: pngBytes,
+          );
+          
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Saved to Projects!'),
+            backgroundColor: AppColors.accentCyan,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,6 +116,11 @@ class _StoryEditorScreenState extends ConsumerState<StoryEditorScreen> {
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.save_rounded, color: Colors.white),
+            onPressed: _saveToProjects,
+            tooltip: 'Save to Projects',
+          ),
           TextButton(
             onPressed: _exportCollage,
             child: const Text('Export', style: TextStyle(color: AppColors.accentCyan)),

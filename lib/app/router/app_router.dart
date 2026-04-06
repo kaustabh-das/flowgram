@@ -6,6 +6,8 @@ import '../../features/home/presentation/home_screen.dart';
 import '../../features/editor/presentation/editor_screen.dart';
 import '../../features/templates/presentation/templates_screen.dart';
 import '../../features/templates/presentation/story_editor_screen.dart';
+import '../../features/video/presentation/video_screen.dart';
+import '../../features/gallery/presentation/gallery_screen.dart';
 import '../shell/app_shell.dart';
 
 // ── Route paths ──────────────────────────────────────────────────────────────
@@ -14,8 +16,8 @@ abstract class AppRoutes {
   static const editor    = '/editor';
   static const templates = '/templates';
   static const storyEditor = '/story_editor';
-  // Legacy – keeping gallery accessible but not in bottom nav
-  static const gallery   = '/gallery';
+  static const video     = '/video';
+  static const projects  = '/projects';
 }
 
 // ── Router provider ──────────────────────────────────────────────────────────
@@ -31,6 +33,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.home,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: HomeScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.video,
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: VideoScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.projects,
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: GalleryScreen(),
             ),
           ),
           GoRoute(

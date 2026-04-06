@@ -20,7 +20,7 @@ class GalleryScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(AppStrings.galleryTitle),
+        title: const Text('Projects'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_rounded),
