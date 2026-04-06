@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -7,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../core/services/image_picker_service.dart';
+import '../../../core/services/export_service.dart';
 import '../domain/collage_layout.dart';
 import 'state/story_editor_state.dart';
 
@@ -37,23 +39,25 @@ class _StoryEditorScreenState extends ConsumerState<StoryEditorScreen> {
       final boundary = _boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return;
 
-      // Unfocus / deselect visually if any UI elements overlay the canvas.
-      // E.g., we'll ensure placeholders don't show when exporting.
-      // For a truly clean export, you'd toggle a state, delay, then capture.
+      // Extract image as bytes
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      final success = await ref.read(exportServiceProvider).saveImageToGallery(pngBytes);
       
-      // In a full app, you would save it via gallery_saver or similar.
-      // For this step, we simply show a success snackbar since the user
-      // only requested the export boundary to be functional.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Collage successfully captured!')),
+          SnackBar(
+            content: Text(success ? 'Collage saved to gallery!' : 'Failed to save collage.'),
+            backgroundColor: success ? AppColors.accentCyan : Colors.red,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to capture collage: $e')),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }

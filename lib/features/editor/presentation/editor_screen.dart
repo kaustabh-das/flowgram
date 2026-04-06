@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -14,6 +15,7 @@ import '../../../core/services/image_cache_service.dart';
 import '../../../core/services/image_picker_service.dart';
 import '../../../core/utils/image_utils.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../../core/services/export_service.dart';
 import '../../gallery/presentation/gallery_provider.dart';
 import 'package:colorfilter_generator/colorfilter_generator.dart';
 import 'package:colorfilter_generator/addons.dart';
@@ -299,6 +301,8 @@ class EditorScreen extends ConsumerStatefulWidget {
 }
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
+  final GlobalKey _previewBoundaryKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -400,9 +404,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             label: 'Processing…',
             showSpinner: true,
           ),
-        EditorStatus.ready when state.hasImage => _ImagePreview(
-            key: ValueKey(state.sourceFile!.path),
-            state: state,
+        EditorStatus.ready when state.hasImage => RepaintBoundary(
+            key: _previewBoundaryKey,
+            child: _ImagePreview(
+              key: ValueKey(state.sourceFile!.path),
+              state: state,
+            ),
           ),
         EditorStatus.error => _ErrorPreview(
             key: const ValueKey('error'),
@@ -433,17 +440,43 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
-  void _onExport(BuildContext context, EditorImageState state) {
+  Future<void> _onExport(BuildContext context, EditorImageState state) async {
     if (state.sourceFile == null) return;
-    // Save to gallery provider for the home screen recent-edits grid
-    if (state.thumbnail != null) {
-      ref.read(galleryProvider.notifier).addProject(
-            imagePath: state.sourceFile!.path,
-            thumbnail: state.thumbnail!,
+    
+    try {
+      final boundary = _previewBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 4.0); // Ultra-high resolution export
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      final success = await ref.read(exportServiceProvider).saveImageToGallery(pngBytes);
+
+      // Save to gallery provider for the home screen recent-edits grid
+      if (success && state.thumbnail != null) {
+        ref.read(galleryProvider.notifier).addProject(
+              imagePath: state.sourceFile!.path,
+              thumbnail: state.thumbnail!,
+            );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Image flawlessly exported to Gallery! ✓')),
           );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved to gallery ✓')),
-      );
+        }
+      } else if (!success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save to Gallery!')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export error: $e')),
+        );
+      }
     }
   }
 }
