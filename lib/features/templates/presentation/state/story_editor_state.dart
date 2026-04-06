@@ -88,6 +88,21 @@ class StoryEditorNotifier extends AutoDisposeNotifier<StoryEditorState> {
     state = state.copyWith(slots: updatedSlots);
   }
 
+  void swapImages(String slot1Id, String slot2Id) {
+    if (slot1Id == slot2Id) return;
+    
+    final slot1 = state.slots[slot1Id] ?? const CollageSlotData();
+    final slot2 = state.slots[slot2Id] ?? const CollageSlotData();
+    
+    final updatedSlots = Map<String, CollageSlotData>.from(state.slots);
+    
+    // Swap the data
+    updatedSlots[slot1Id] = slot2;
+    updatedSlots[slot2Id] = slot1;
+    
+    state = state.copyWith(slots: updatedSlots);
+  }
+
   void reset() {
     state = const StoryEditorState();
   }
