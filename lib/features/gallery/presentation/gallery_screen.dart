@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import '../../../app/router/app_router.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
@@ -39,7 +42,9 @@ class GalleryScreen extends ConsumerWidget {
               itemBuilder: (context, index) => _GalleryTile(
                 project: projects[index],
                 onTap: () {
-                  // TODO: navigate to editor with project path
+                  context.go(
+                    '${AppRoutes.editor}?path=${Uri.encodeComponent(projects[index].imagePath)}',
+                  );
                 },
                 onDelete: () =>
                     ref.read(galleryProvider.notifier).removeProject(
