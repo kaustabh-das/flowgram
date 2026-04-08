@@ -9,10 +9,10 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/services/image_picker_service.dart';
 import '../../../core/services/export_service.dart';
+import '../../../core/utils/image_utils.dart';
 import '../../gallery/presentation/gallery_provider.dart';
 import '../domain/collage_layout.dart';
 import 'state/story_editor_state.dart';
-import 'package:path_provider/path_provider.dart';
 
 class StoryEditorScreen extends ConsumerStatefulWidget {
   const StoryEditorScreen({super.key, required this.layoutId});
@@ -73,16 +73,16 @@ class _StoryEditorScreenState extends ConsumerState<StoryEditorScreen> {
       final ui.Image image = await boundary.toImage(pixelRatio: 1.0);
       final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final Uint8List pngBytes = byteData!.buffer.asUint8List();
+      image.dispose();
 
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/project_${DateTime.now().millisecondsSinceEpoch}.png');
-      await file.writeAsBytes(pngBytes);
+      // Save to permanent app storage (flowgram_images/) — never the temp dir.
+      final permanentFile = await ImageUtils.saveToAppStorage(pngBytes, extension: 'png');
 
-      ref.read(galleryProvider.notifier).addProject(
-            imagePath: file.path,
+      await ref.read(galleryProvider.notifier).addProject(
+            imagePath: permanentFile.path,
             thumbnail: pngBytes,
           );
-          
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

@@ -1,13 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/image_utils.dart';
+import '../../../core/services/image_picker_service.dart';
 import 'gallery_provider.dart';
 
 class GalleryScreen extends ConsumerWidget {
@@ -44,43 +41,53 @@ class GalleryScreen extends ConsumerWidget {
                 onTap: () {
                   // TODO: navigate to editor with project path
                 },
+                onDelete: () =>
+                    ref.read(galleryProvider.notifier).removeProject(
+                          projects[index].id,
+                        ),
               ),
             ),
     );
   }
 
   Future<void> _pickImage(BuildContext context, WidgetRef ref) async {
-    final status = await Permission.photos.request();
-    if (!status.isGranted) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(AppStrings.permGalleryDenied),
-            action: SnackBarAction(
-              label: AppStrings.permOpenSettings,
-              onPressed: openAppSettings,
+    // Delegate entirely to ImagePickerService so that:
+    //  1. Permission is requested correctly (photos vs. media).
+    //  2. The picked file is COPIED into permanent app storage.
+    //  3. A thumbnail is generated on a background isolate.
+    final result =
+        await ref.read(imagePickerServiceProvider).pickFromGallery();
+
+    switch (result) {
+      case PickSuccess(:final file, :final thumbnail):
+        if (thumbnail == null) return;
+        await ref.read(galleryProvider.notifier).addProject(
+              imagePath: file.path,
+              thumbnail: thumbnail,
+            );
+
+      case PickPermissionDenied():
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(AppStrings.permGalleryDenied),
+              action: SnackBarAction(
+                label: AppStrings.permOpenSettings,
+                onPressed: openAppSettings,
+              ),
             ),
-          ),
-        );
-      }
-      return;
-    }
-
-    final picker = ImagePicker();
-    final xFile = await picker.pickImage(source: ImageSource.gallery);
-    if (xFile == null || !context.mounted) return;
-
-    final file = File(xFile.path);
-    final thumb = await ImageUtils.createThumbnail(
-      file,
-      size: AppSizes.thumbnailSize,
-    );
-
-    if (thumb != null) {
-      ref.read(galleryProvider.notifier).addProject(
-            imagePath: xFile.path,
-            thumbnail: thumb,
           );
+        }
+
+      case PickError(:final message):
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $message')),
+          );
+        }
+
+      case PickCancelled():
+        break; // user cancelled — nothing to do
     }
   }
 }
@@ -116,15 +123,21 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _GalleryTile extends StatelessWidget {
-  const _GalleryTile({required this.project, required this.onTap});
+  const _GalleryTile({
+    required this.project,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   final GalleryProject project;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: () => _confirmDelete(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppSizes.radiusSm),
         child: Image.memory(
@@ -132,6 +145,30 @@ class _GalleryTile extends StatelessWidget {
           fit: BoxFit.cover,
           gaplessPlayback: true,
         ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete project?'),
+        content: const Text(
+            'This will permanently remove the image from your projects.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onDelete();
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,10 @@
+import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/storage/hive_service.dart';
+import '../../../core/utils/image_utils.dart';
 
 // ── Model ──────────────────────────────────────────────────────────────────
 
@@ -12,9 +17,33 @@ class GalleryProject {
   });
 
   final String id;
+
+  /// Absolute path inside permanent app storage (flowgram_images/).
   final String imagePath;
+
+  /// JPEG-encoded thumbnail bytes.
   final Uint8List thumbnail;
+
   final DateTime createdAt;
+
+  // ── Serialization ─────────────────────────────────────────────────
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'imagePath': imagePath,
+        // Hive stores List<int> natively; cast back on read.
+        'thumbnail': thumbnail.toList(),
+        'createdAt': createdAt.millisecondsSinceEpoch,
+      };
+
+  factory GalleryProject.fromMap(Map<dynamic, dynamic> map) => GalleryProject(
+        id: map['id'] as String,
+        imagePath: map['imagePath'] as String,
+        thumbnail:
+            Uint8List.fromList((map['thumbnail'] as List).cast<int>()),
+        createdAt: DateTime.fromMillisecondsSinceEpoch(
+            map['createdAt'] as int),
+      );
 
   GalleryProject copyWith({
     String? id,
@@ -34,22 +63,76 @@ class GalleryProject {
 
 class GalleryNotifier extends Notifier<List<GalleryProject>> {
   @override
-  List<GalleryProject> build() => [];
+  List<GalleryProject> build() {
+    // Load all persisted projects from Hive at startup.
+    final box = HiveService.projects;
+    final projects = <GalleryProject>[];
 
-  void addProject({
+    for (final key in box.keys) {
+      final raw = box.get(key);
+      if (raw is Map) {
+        try {
+          final project = GalleryProject.fromMap(raw);
+          // Skip entries whose image file was externally deleted.
+          if (File(project.imagePath).existsSync()) {
+            projects.add(project);
+          } else {
+            // Clean up orphaned Hive entry.
+            box.delete(key);
+          }
+        } catch (_) {
+          // Corrupt entry — silently remove.
+          box.delete(key);
+        }
+      }
+    }
+
+    // Most recent first.
+    projects.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return projects;
+  }
+
+  // ── Public API ───────────────────────────────────────────────────
+
+  /// Adds a project from a raw file path.
+  ///
+  /// If [imagePath] points outside permanent app storage (e.g. a temp dir or
+  /// the original device gallery location), it is first copied into
+  /// `flowgram_images/` so it survives OS clean-ups.
+  Future<void> addProject({
     required String imagePath,
     required Uint8List thumbnail,
-  }) {
+  }) async {
+    // Ensure we have a permanent copy.
+    final permanentPath = await _ensurePermanent(imagePath);
+
     final project = GalleryProject(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      imagePath: imagePath,
+      imagePath: permanentPath,
       thumbnail: thumbnail,
       createdAt: DateTime.now(),
     );
+
+    // Persist to Hive.
+    await HiveService.projects.put(project.id, project.toMap());
+
+    // Update in-memory state (prepend so newest is first).
     state = [project, ...state];
   }
 
-  void removeProject(String id) {
+  /// Removes a project, deletes its Hive entry, and cleans up its file.
+  Future<void> removeProject(String id) async {
+    final project = state.firstWhere(
+      (p) => p.id == id,
+      orElse: () => throw StateError('Project $id not found'),
+    );
+
+    // Remove from Hive.
+    await HiveService.projects.delete(id);
+
+    // Delete the physical image file.
+    await ImageUtils.deleteFromAppStorage(File(project.imagePath));
+
     state = state.where((p) => p.id != id).toList();
   }
 
@@ -58,6 +141,17 @@ class GalleryNotifier extends Notifier<List<GalleryProject>> {
     final item = updated.removeAt(oldIndex);
     updated.insert(newIndex, item);
     state = updated;
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────
+
+  /// Returns [originalPath] if it is already inside the app's documents dir,
+  /// otherwise copies the file to `flowgram_images/` and returns the new path.
+  static Future<String> _ensurePermanent(String originalPath) async {
+    // We consider a path permanent when it lives inside flowgram_images/.
+    if (originalPath.contains('flowgram_images')) return originalPath;
+    final permanent = await ImageUtils.copyToAppStorage(originalPath);
+    return permanent.path;
   }
 }
 
