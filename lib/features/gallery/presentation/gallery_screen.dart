@@ -45,7 +45,7 @@ class GalleryScreen extends ConsumerWidget {
                   project: project,
                   onTap: () {
                     if (project.type == 'template') {
-                      context.go(
+                      context.push(
                         '${AppRoutes.storyEditor}?layoutId=${project.layoutId}&projectId=${project.id}',
                       );
                     } else {
