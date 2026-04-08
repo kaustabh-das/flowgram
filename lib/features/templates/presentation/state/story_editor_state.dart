@@ -31,16 +31,21 @@ class CollageSlotData {
 
 class StoryEditorState {
   const StoryEditorState({
+    this.projectId,
     this.slots = const {},
   });
 
   // Maps slot IDs to their data (image path, panning offset, scale)
   final Map<String, CollageSlotData> slots;
+  // If editing an existing project, track its ID
+  final String? projectId;
 
   StoryEditorState copyWith({
+    String? projectId,
     Map<String, CollageSlotData>? slots,
   }) {
     return StoryEditorState(
+      projectId: projectId ?? this.projectId,
       slots: slots ?? this.slots,
     );
   }
@@ -50,6 +55,18 @@ class StoryEditorNotifier extends AutoDisposeNotifier<StoryEditorState> {
   @override
   StoryEditorState build() {
     return const StoryEditorState();
+  }
+
+  void setProjectId(String projectId) {
+    state = state.copyWith(projectId: projectId);
+  }
+
+  void initFromProject(String projectId, Map<String, String> existingSlots) {
+    final updatedSlots = <String, CollageSlotData>{};
+    for (final entry in existingSlots.entries) {
+      updatedSlots[entry.key] = CollageSlotData(imagePath: entry.value);
+    }
+    state = StoryEditorState(projectId: projectId, slots: updatedSlots);
   }
 
   void setImage(String slotId, String imagePath) {

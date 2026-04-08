@@ -39,19 +39,28 @@ class GalleryScreen extends ConsumerWidget {
                 mainAxisSpacing: AppSizes.galleryGridSpacing,
               ),
               itemCount: projects.length,
-              itemBuilder: (context, index) => _GalleryTile(
-                project: projects[index],
-                onTap: () {
-                  context.go(
-                    '${AppRoutes.editor}?path=${Uri.encodeComponent(projects[index].imagePath)}',
-                  );
-                },
+              itemBuilder: (context, index) {
+                final project = projects[index];
+                return _GalleryTile(
+                  project: project,
+                  onTap: () {
+                    if (project.type == 'template') {
+                      context.go(
+                        '${AppRoutes.storyEditor}?layoutId=${project.layoutId}&projectId=${project.id}',
+                      );
+                    } else {
+                      context.go(
+                        '${AppRoutes.editor}?path=${Uri.encodeComponent(project.imagePath)}',
+                      );
+                    }
+                  },
                 onDelete: () =>
                     ref.read(galleryProvider.notifier).removeProject(
                           projects[index].id,
                         ),
-              ),
-            ),
+              );
+            },
+          ),
     );
   }
 

@@ -9,15 +9,15 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/services/image_picker_service.dart';
 import '../../../core/services/export_service.dart';
-import '../../../core/utils/image_utils.dart';
 import '../../gallery/presentation/gallery_provider.dart';
 import '../domain/collage_layout.dart';
 import 'state/story_editor_state.dart';
 
 class StoryEditorScreen extends ConsumerStatefulWidget {
-  const StoryEditorScreen({super.key, required this.layoutId});
+  const StoryEditorScreen({super.key, required this.layoutId, this.projectId});
 
   final String layoutId;
+  final String? projectId;
 
   @override
   ConsumerState<StoryEditorScreen> createState() => _StoryEditorScreenState();
@@ -34,6 +34,18 @@ class _StoryEditorScreenState extends ConsumerState<StoryEditorScreen> {
       (l) => l.id == widget.layoutId,
       orElse: () => StandardLayouts.storySplit,
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.projectId != null) {
+        final projects = ref.read(galleryProvider);
+        final proj = projects.where((p) => p.id == widget.projectId).firstOrNull;
+        if (proj != null && proj.templateSlots != null) {
+          ref.read(storyEditorProvider.notifier).initFromProject(proj.id, proj.templateSlots!);
+        }
+      } else {
+        ref.read(storyEditorProvider.notifier).reset();
+      }
+    });
   }
 
   Future<void> _exportCollage() async {
@@ -65,38 +77,56 @@ class _StoryEditorScreenState extends ConsumerState<StoryEditorScreen> {
     }
   }
 
-  Future<void> _saveToProjects() async {
+  Future<void> _autoSaveTemplate() async {
+    // Wait for the UI to update with the new images before capturing
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+
+    final state = ref.read(storyEditorProvider);
+    final validSlots = <String, String>{};
+    for (final entry in state.slots.entries) {
+      if (entry.value.imagePath != null) {
+        validSlots[entry.key] = entry.value.imagePath!;
+      }
+    }
+    if (validSlots.isEmpty) return; // Nothing to save
+
+    Uint8List thumbnailBytes;
     try {
       final boundary = _boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
-
-      final ui.Image image = await boundary.toImage(pixelRatio: 1.0);
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final Uint8List pngBytes = byteData!.buffer.asUint8List();
-      image.dispose();
-
-      // Save to permanent app storage (flowgram_images/) — never the temp dir.
-      final permanentFile = await ImageUtils.saveToAppStorage(pngBytes, extension: 'png');
-
-      await ref.read(galleryProvider.notifier).addProject(
-            imagePath: permanentFile.path,
-            thumbnail: pngBytes,
-          );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Saved to Projects!'),
-            backgroundColor: AppColors.accentCyan,
-          ),
-        );
+      if (boundary != null) {
+        final ui.Image image = await boundary.toImage(pixelRatio: 0.5);
+        final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        thumbnailBytes = byteData!.buffer.asUint8List();
+        image.dispose();
+      } else {
+        thumbnailBytes = Uint8List(0);
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
+    } catch (_) {
+      thumbnailBytes = Uint8List(0);
+    }
+
+    final newId = await ref.read(galleryProvider.notifier).saveTemplateProject(
+      existingId: state.projectId,
+      layoutId: _layout.id,
+      slots: validSlots,
+      thumbnail: thumbnailBytes,
+    );
+
+    if (state.projectId == null && mounted) {
+      ref.read(storyEditorProvider.notifier).setProjectId(newId);
+    }
+  }
+
+  Future<void> _saveToProjects() async {
+    await _autoSaveTemplate();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Template layout saved to Projects!'),
+          backgroundColor: AppColors.accentCyan,
+        ),
+      );
     }
   }
 
@@ -146,6 +176,7 @@ class _StoryEditorScreenState extends ConsumerState<StoryEditorScreen> {
                           return _CollageSlotWidget(
                             slot: slot,
                             canvasSize: Size(constraints.maxWidth, constraints.maxHeight),
+                            onAutoSave: () => _autoSaveTemplate(),
                           );
                         }).toList(),
                       );
@@ -165,10 +196,12 @@ class _CollageSlotWidget extends ConsumerWidget {
   const _CollageSlotWidget({
     required this.slot,
     required this.canvasSize,
+    required this.onAutoSave,
   });
 
   final CollageSlot slot;
   final Size canvasSize;
+  final VoidCallback onAutoSave;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -189,6 +222,7 @@ class _CollageSlotWidget extends ConsumerWidget {
           final draggedSlotId = details.data;
           if (draggedSlotId != slot.id) {
             ref.read(storyEditorProvider.notifier).swapImages(draggedSlotId, slot.id);
+            onAutoSave();
           }
         },
         builder: (context, candidateData, rejectedData) {
@@ -225,12 +259,7 @@ class _CollageSlotWidget extends ConsumerWidget {
                         final result = await ref.read(imagePickerServiceProvider).pickFromGallery();
                         if (result is PickSuccess) {
                           ref.read(storyEditorProvider.notifier).setImage(slot.id, result.file.path);
-                          if (result.thumbnail != null) {
-                            ref.read(galleryProvider.notifier).addProject(
-                                  imagePath: result.file.path,
-                                  thumbnail: result.thumbnail!,
-                                );
-                          }
+                          onAutoSave();
                         } else {
                           // If cancelled or failed, stop loading
                           ref.read(storyEditorProvider.notifier).setLoading(slot.id, false);

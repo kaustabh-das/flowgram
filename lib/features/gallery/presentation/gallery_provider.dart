@@ -14,6 +14,9 @@ class GalleryProject {
     required this.imagePath,
     required this.thumbnail,
     required this.createdAt,
+    this.type = 'single',
+    this.layoutId,
+    this.templateSlots,
   });
 
   final String id;
@@ -26,6 +29,10 @@ class GalleryProject {
 
   final DateTime createdAt;
 
+  final String type; // 'single' or 'template'
+  final String? layoutId;
+  final Map<String, String>? templateSlots; // slotId -> permanentPath
+
   // ── Serialization ─────────────────────────────────────────────────
 
   Map<String, dynamic> toMap() => {
@@ -34,6 +41,9 @@ class GalleryProject {
         // Hive stores List<int> natively; cast back on read.
         'thumbnail': thumbnail.toList(),
         'createdAt': createdAt.millisecondsSinceEpoch,
+        'type': type,
+        'layoutId': layoutId,
+        'templateSlots': templateSlots,
       };
 
   factory GalleryProject.fromMap(Map<dynamic, dynamic> map) => GalleryProject(
@@ -43,6 +53,9 @@ class GalleryProject {
             Uint8List.fromList((map['thumbnail'] as List).cast<int>()),
         createdAt: DateTime.fromMillisecondsSinceEpoch(
             map['createdAt'] as int),
+        type: map['type'] as String? ?? 'single',
+        layoutId: map['layoutId'] as String?,
+        templateSlots: (map['templateSlots'] as Map?)?.cast<String, String>(),
       );
 
   GalleryProject copyWith({
@@ -50,12 +63,18 @@ class GalleryProject {
     String? imagePath,
     Uint8List? thumbnail,
     DateTime? createdAt,
+    String? type,
+    String? layoutId,
+    Map<String, String>? templateSlots,
   }) =>
       GalleryProject(
         id: id ?? this.id,
         imagePath: imagePath ?? this.imagePath,
         thumbnail: thumbnail ?? this.thumbnail,
         createdAt: createdAt ?? this.createdAt,
+        type: type ?? this.type,
+        layoutId: layoutId ?? this.layoutId,
+        templateSlots: templateSlots ?? this.templateSlots,
       );
 }
 
@@ -120,6 +139,49 @@ class GalleryNotifier extends Notifier<List<GalleryProject>> {
     state = [project, ...state];
   }
 
+  /// Automatically saves a template project. Returns the project ID.
+  Future<String> saveTemplateProject({
+    String? existingId,
+    required String layoutId,
+    required Map<String, String> slots,
+    required Uint8List thumbnail,
+  }) async {
+    final id = existingId ?? DateTime.now().millisecondsSinceEpoch.toString();
+
+    // Ensure all slot images are copied to permanent storage.
+    final permanentSlots = <String, String>{};
+    for (final entry in slots.entries) {
+      permanentSlots[entry.key] = await _ensurePermanent(entry.value);
+    }
+    
+    // We arbitrarily pick the first slot image as the default imagePath,
+    // though the 'thumbnail' byte array represents the template visually.
+    final firstPath = permanentSlots.values.isNotEmpty ? permanentSlots.values.first : '';
+
+    final project = GalleryProject(
+      id: id,
+      imagePath: firstPath,
+      thumbnail: thumbnail,
+      createdAt: DateTime.now(),
+      type: 'template',
+      layoutId: layoutId,
+      templateSlots: permanentSlots,
+    );
+
+    await HiveService.projects.put(project.id, project.toMap());
+
+    final index = state.indexWhere((p) => p.id == id);
+    if (index >= 0) {
+      final updated = [...state];
+      updated[index] = project;
+      updated.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      state = updated;
+    } else {
+      state = [project, ...state];
+    }
+    return id;
+  }
+
   /// Removes a project, deletes its Hive entry, and cleans up its file.
   Future<void> removeProject(String id) async {
     final project = state.firstWhere(
@@ -130,8 +192,17 @@ class GalleryNotifier extends Notifier<List<GalleryProject>> {
     // Remove from Hive.
     await HiveService.projects.delete(id);
 
-    // Delete the physical image file.
-    await ImageUtils.deleteFromAppStorage(File(project.imagePath));
+    // Delete the physical image files.
+    if (project.type == 'template' && project.templateSlots != null) {
+      for (final path in project.templateSlots!.values) {
+        await ImageUtils.deleteFromAppStorage(File(path));
+      }
+      if (project.imagePath.isNotEmpty) {
+        await ImageUtils.deleteFromAppStorage(File(project.imagePath));
+      }
+    } else {
+      await ImageUtils.deleteFromAppStorage(File(project.imagePath));
+    }
 
     state = state.where((p) => p.id != id).toList();
   }
