@@ -225,6 +225,12 @@ class _CollageSlotWidget extends ConsumerWidget {
                         final result = await ref.read(imagePickerServiceProvider).pickFromGallery();
                         if (result is PickSuccess) {
                           ref.read(storyEditorProvider.notifier).setImage(slot.id, result.file.path);
+                          if (result.thumbnail != null) {
+                            ref.read(galleryProvider.notifier).addProject(
+                                  imagePath: result.file.path,
+                                  thumbnail: result.thumbnail!,
+                                );
+                          }
                         } else {
                           // If cancelled or failed, stop loading
                           ref.read(storyEditorProvider.notifier).setLoading(slot.id, false);

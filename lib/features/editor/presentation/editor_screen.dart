@@ -92,11 +92,12 @@ class EditorImageState {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class EditorImageNotifier extends StateNotifier<EditorImageState> {
-  EditorImageNotifier(this._pickerService, this._cache)
+  EditorImageNotifier(this._pickerService, this._cache, this._galleryNotifier)
       : super(const EditorImageState());
 
   final ImagePickerService _pickerService;
   final ImageCacheService _cache;
+  final GalleryNotifier _galleryNotifier;
 
   // Cancel token — incremented each time a new pick/load starts so that
   // stale async continuations silently no-op instead of updating state.
@@ -177,6 +178,12 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
           status: EditorStatus.loading,
           thumbnail: thumbnail,
         );
+        if (thumbnail != null) {
+          _galleryNotifier.addProject(
+            imagePath: file.path,
+            thumbnail: thumbnail,
+          );
+        }
         await _loadFileIntoState(file, token: token, thumbnail: thumbnail);
 
       case PickPermissionDenied():
@@ -284,6 +291,7 @@ final editorImageProvider =
   return EditorImageNotifier(
     ref.watch(imagePickerServiceProvider),
     ref.watch(imageCacheServiceProvider),
+    ref.read(galleryProvider.notifier),
   );
 });
 
