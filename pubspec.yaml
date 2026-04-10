@@ -49,6 +49,7 @@ dependencies:
   shimmer: ^3.0.0
   colorfilter_generator: ^0.0.8
   gal: ^2.3.2
+  image_cropper: ^8.0.2
 
 dev_dependencies:
   flutter_test:
@@ -72,3 +73,6 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/fonts/
+
+dependency_overrides:
+  image_cropper_platform_interface: 7.1.0

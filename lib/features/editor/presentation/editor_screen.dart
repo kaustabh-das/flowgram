@@ -19,6 +19,7 @@ import '../../../core/services/export_service.dart';
 import '../../gallery/presentation/gallery_provider.dart';
 import 'package:colorfilter_generator/colorfilter_generator.dart';
 import 'package:colorfilter_generator/addons.dart';
+import 'package:image_cropper/image_cropper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State
@@ -121,6 +122,34 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
 
     if (result != null) {
       final newFile = File(result.path);
+      await _loadFileIntoState(newFile);
+    }
+    state = state.copyWith(status: EditorStatus.ready, activeToolIndex: -1);
+  }
+
+  Future<void> crop() async {
+    if (state.sourceFile == null) return;
+    state = state.copyWith(status: EditorStatus.processing, activeToolIndex: 1);
+
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: state.sourceFile!.path,
+      uiSettings: [
+        AndroidUiSettings(
+            toolbarTitle: 'Crop & Rotate',
+            toolbarColor: const Color(0xFF141414),
+            toolbarWidgetColor: const Color(0xFFFFFFFF),
+            initAspectRatio: CropAspectRatioPreset.original,
+            lockAspectRatio: false),
+        IOSUiSettings(
+          title: 'Crop & Rotate',
+        ),
+      ],
+    );
+
+    if (!mounted) return;
+
+    if (croppedFile != null) {
+      final newFile = File(croppedFile.path);
       await _loadFileIntoState(newFile);
     }
     state = state.copyWith(status: EditorStatus.ready, activeToolIndex: -1);
@@ -377,7 +406,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                       activeIndex: state.activeToolIndex,
                       isProcessing: state.status == EditorStatus.processing,
                       onCompress: notifier.compress,
-                      onCrop: () => notifier.setActiveTool(1),
+                      onCrop: notifier.crop,
                       onAdjust: () => notifier.setActiveTool(2),
                       onFilter: () => notifier.setActiveTool(3),
                       onText: () => notifier.setActiveTool(4),
