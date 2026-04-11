@@ -1,0 +1,1710 @@
+{
+  "categories": [
+    "Minimal",
+    "Aesthetic",
+    "Carousel",
+    "Creator",
+    "Creative",
+    "Advanced"
+  ],
+  "templates": [
+    {
+      "id": "t01_broken_grid",
+      "name": "Broken Grid",
+      "category": "Minimal",
+      "frames": 1,
+      "aspect_ratio": "4:5",
+      "background": "#FFFFFF",
+      "layers": [
+        {
+          "id": "l1",
+          "type": "image",
+          "x": 0.03,
+          "y": 0.04,
+          "width": 0.44,
+          "height": 0.62,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l2",
+          "type": "image",
+          "x": 0.51,
+          "y": 0.04,
+          "width": 0.46,
+          "height": 0.28,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l3",
+          "type": "image",
+          "x": 0.51,
+          "y": 0.36,
+          "width": 0.22,
+          "height": 0.3,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l4",
+          "type": "image",
+          "x": 0.75,
+          "y": 0.36,
+          "width": 0.22,
+          "height": 0.3,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l5",
+          "type": "image",
+          "x": 0.03,
+          "y": 0.7,
+          "width": 0.94,
+          "height": 0.26,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t02_pure_minimal",
+      "name": "Pure Minimal",
+      "category": "Minimal",
+      "frames": 1,
+      "aspect_ratio": "1:1",
+      "background": "#FFFFFF",
+      "layers": [
+        {
+          "id": "l6",
+          "type": "image",
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.8,
+          "height": 0.8,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t03_asym_grid",
+      "name": "Asymmetric Grid",
+      "category": "Minimal",
+      "frames": 1,
+      "aspect_ratio": "4:5",
+      "background": "#F5F5F5",
+      "layers": [
+        {
+          "id": "l7",
+          "type": "image",
+          "x": 0.02,
+          "y": 0.02,
+          "width": 0.6,
+          "height": 0.45,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l8",
+          "type": "image",
+          "x": 0.64,
+          "y": 0.02,
+          "width": 0.34,
+          "height": 0.45,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l9",
+          "type": "image",
+          "x": 0.02,
+          "y": 0.5,
+          "width": 0.28,
+          "height": 0.48,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l10",
+          "type": "image",
+          "x": 0.33,
+          "y": 0.5,
+          "width": 0.28,
+          "height": 0.22,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l11",
+          "type": "image",
+          "x": 0.33,
+          "y": 0.75,
+          "width": 0.28,
+          "height": 0.23,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l12",
+          "type": "image",
+          "x": 0.64,
+          "y": 0.5,
+          "width": 0.34,
+          "height": 0.48,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t04_shadow_depth",
+      "name": "Shadow Depth",
+      "category": "Minimal",
+      "frames": 1,
+      "aspect_ratio": "4:5",
+      "background": "#2C2C3E",
+      "layers": [
+        {
+          "id": "l13",
+          "type": "image",
+          "x": 0.04,
+          "y": 0.06,
+          "width": 0.6,
+          "height": 0.52,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 12,
+          "zIndex": 1
+        },
+        {
+          "id": "l14",
+          "type": "image",
+          "x": 0.6,
+          "y": 0.14,
+          "width": 0.36,
+          "height": 0.4,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 12,
+          "zIndex": 0
+        },
+        {
+          "id": "l15",
+          "type": "image",
+          "x": 0.04,
+          "y": 0.62,
+          "width": 0.92,
+          "height": 0.32,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 12,
+          "zIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "t05_gradient_focus",
+      "name": "Gradient Focus",
+      "category": "Minimal",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#0F0F1A",
+      "layers": [
+        {
+          "id": "l16",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1.0,
+          "height": 0.58,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l17",
+          "type": "image",
+          "x": 0.03,
+          "y": 0.63,
+          "width": 0.44,
+          "height": 0.32,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 24,
+          "zIndex": 0
+        },
+        {
+          "id": "l18",
+          "type": "image",
+          "x": 0.53,
+          "y": 0.66,
+          "width": 0.44,
+          "height": 0.28,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 24,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t06_center_focus",
+      "name": "Center Focus",
+      "category": "Minimal",
+      "frames": 1,
+      "aspect_ratio": "4:5",
+      "background": "#F9F9F9",
+      "layers": [
+        {
+          "id": "l19",
+          "type": "image",
+          "x": 0.12,
+          "y": 0.18,
+          "width": 0.76,
+          "height": 0.64,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 4,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t07_overlap_collage",
+      "name": "Overlapping Collage",
+      "category": "Aesthetic",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#F7F2E7",
+      "layers": [
+        {
+          "id": "l20",
+          "type": "image",
+          "x": 0.05,
+          "y": 0.08,
+          "width": 0.65,
+          "height": 0.52,
+          "rotation": -0.05,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l21",
+          "type": "image",
+          "x": 0.22,
+          "y": 0.38,
+          "width": 0.6,
+          "height": 0.44,
+          "rotation": 0.07,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 1
+        },
+        {
+          "id": "l22",
+          "type": "image",
+          "x": 0.55,
+          "y": 0.05,
+          "width": 0.38,
+          "height": 0.28,
+          "rotation": -0.1,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 2
+        },
+        {
+          "id": "l23",
+          "type": "image",
+          "x": 0.03,
+          "y": 0.52,
+          "width": 0.2,
+          "height": 0.2,
+          "rotation": 0.12,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 3
+        }
+      ]
+    },
+    {
+      "id": "t08_pinterest_board",
+      "name": "Pinterest Board",
+      "category": "Aesthetic",
+      "frames": 2,
+      "aspect_ratio": "4:5",
+      "background": "#FDFAF5",
+      "layers": [
+        {
+          "id": "l24",
+          "type": "image",
+          "x": 0.01,
+          "y": 0.02,
+          "width": 0.16,
+          "height": 0.96,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 6,
+          "zIndex": 0
+        },
+        {
+          "id": "l25",
+          "type": "image",
+          "x": 0.19,
+          "y": 0.02,
+          "width": 0.29,
+          "height": 0.55,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 6,
+          "zIndex": 0
+        },
+        {
+          "id": "l26",
+          "type": "image",
+          "x": 0.19,
+          "y": 0.6,
+          "width": 0.29,
+          "height": 0.38,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 6,
+          "zIndex": 0
+        },
+        {
+          "id": "l27",
+          "type": "image",
+          "x": 0.51,
+          "y": 0.02,
+          "width": 0.46,
+          "height": 0.35,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 6,
+          "zIndex": 0
+        },
+        {
+          "id": "l28",
+          "type": "image",
+          "x": 0.51,
+          "y": 0.4,
+          "width": 0.22,
+          "height": 0.58,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 6,
+          "zIndex": 0
+        },
+        {
+          "id": "l29",
+          "type": "image",
+          "x": 0.76,
+          "y": 0.4,
+          "width": 0.22,
+          "height": 0.58,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 6,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t09_polaroid_stack",
+      "name": "Polaroid Stack",
+      "category": "Aesthetic",
+      "frames": 1,
+      "aspect_ratio": "4:5",
+      "background": "#E8E0D5",
+      "layers": [
+        {
+          "id": "l30",
+          "type": "image",
+          "x": 0.08,
+          "y": 0.12,
+          "width": 0.65,
+          "height": 0.62,
+          "rotation": 0.2,
+          "opacity": 1.0,
+          "borderRadius": 2,
+          "zIndex": 0
+        },
+        {
+          "id": "l31",
+          "type": "image",
+          "x": 0.15,
+          "y": 0.08,
+          "width": 0.65,
+          "height": 0.62,
+          "rotation": -0.1,
+          "opacity": 1.0,
+          "borderRadius": 2,
+          "zIndex": 1
+        },
+        {
+          "id": "l32",
+          "type": "image",
+          "x": 0.22,
+          "y": 0.15,
+          "width": 0.65,
+          "height": 0.62,
+          "rotation": 0.04,
+          "opacity": 1.0,
+          "borderRadius": 2,
+          "zIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "t10_scrapbook",
+      "name": "Scrapbook",
+      "category": "Aesthetic",
+      "frames": 1,
+      "aspect_ratio": "4:5",
+      "background": "#FFF8F2",
+      "layers": [
+        {
+          "id": "l33",
+          "type": "image",
+          "x": 0.03,
+          "y": 0.05,
+          "width": 0.42,
+          "height": 0.5,
+          "rotation": -0.12,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l34",
+          "type": "image",
+          "x": 0.5,
+          "y": 0.08,
+          "width": 0.45,
+          "height": 0.3,
+          "rotation": 0.06,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l35",
+          "type": "image",
+          "x": 0.28,
+          "y": 0.42,
+          "width": 0.28,
+          "height": 0.28,
+          "rotation": 0.18,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l36",
+          "type": "image",
+          "x": 0.02,
+          "y": 0.65,
+          "width": 0.58,
+          "height": 0.28,
+          "rotation": -0.04,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l37",
+          "type": "image",
+          "x": 0.64,
+          "y": 0.42,
+          "width": 0.32,
+          "height": 0.32,
+          "rotation": 0.1,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t11_floating_elements",
+      "name": "Floating Elements",
+      "category": "Aesthetic",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#FDF6E3",
+      "layers": [
+        {
+          "id": "l38",
+          "type": "image",
+          "x": 0.08,
+          "y": 0.08,
+          "width": 0.62,
+          "height": 0.48,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        },
+        {
+          "id": "l39",
+          "type": "image",
+          "x": 0.65,
+          "y": 0.04,
+          "width": 0.3,
+          "height": 0.22,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        },
+        {
+          "id": "l40",
+          "type": "image",
+          "x": 0.02,
+          "y": 0.55,
+          "width": 0.24,
+          "height": 0.18,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        },
+        {
+          "id": "l41",
+          "type": "image",
+          "x": 0.7,
+          "y": 0.6,
+          "width": 0.26,
+          "height": 0.2,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        },
+        {
+          "id": "l42",
+          "type": "image",
+          "x": 0.01,
+          "y": 0.07,
+          "width": 0.14,
+          "height": 0.1,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t12_chaotic_collage",
+      "name": "Chaotic Collage",
+      "category": "Aesthetic",
+      "frames": 1,
+      "aspect_ratio": "1:1",
+      "background": "#FFFEF0",
+      "layers": [
+        {
+          "id": "l43",
+          "type": "image",
+          "x": 0.05,
+          "y": 0.05,
+          "width": 0.44,
+          "height": 0.3,
+          "rotation": -0.15,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l44",
+          "type": "image",
+          "x": 0.5,
+          "y": 0.02,
+          "width": 0.42,
+          "height": 0.35,
+          "rotation": 0.2,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l45",
+          "type": "image",
+          "x": 0.02,
+          "y": 0.38,
+          "width": 0.3,
+          "height": 0.32,
+          "rotation": 0.1,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l46",
+          "type": "image",
+          "x": 0.34,
+          "y": 0.4,
+          "width": 0.38,
+          "height": 0.24,
+          "rotation": -0.12,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l47",
+          "type": "image",
+          "x": 0.14,
+          "y": 0.65,
+          "width": 0.46,
+          "height": 0.3,
+          "rotation": 0.08,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l48",
+          "type": "image",
+          "x": 0.6,
+          "y": 0.58,
+          "width": 0.35,
+          "height": 0.38,
+          "rotation": -0.1,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t13_full_bleed",
+      "name": "Full Bleed Swipe",
+      "category": "Carousel",
+      "frames": 3,
+      "aspect_ratio": "4:5",
+      "background": "#000000",
+      "layers": [
+        {
+          "id": "l49",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 0.333,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l50",
+          "type": "image",
+          "x": 0.334,
+          "y": 0.0,
+          "width": 0.333,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l51",
+          "type": "image",
+          "x": 0.667,
+          "y": 0.0,
+          "width": 0.333,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t14_film_strip",
+      "name": "Film Strip",
+      "category": "Carousel",
+      "frames": 4,
+      "aspect_ratio": "1:1",
+      "background": "#111111",
+      "layers": [
+        {
+          "id": "l52",
+          "type": "image",
+          "x": 0.005,
+          "y": 0.08,
+          "width": 0.24,
+          "height": 0.84,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l53",
+          "type": "image",
+          "x": 0.255,
+          "y": 0.08,
+          "width": 0.24,
+          "height": 0.84,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l54",
+          "type": "image",
+          "x": 0.505,
+          "y": 0.08,
+          "width": 0.24,
+          "height": 0.84,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l55",
+          "type": "image",
+          "x": 0.755,
+          "y": 0.08,
+          "width": 0.24,
+          "height": 0.84,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t15_story_sequence",
+      "name": "Story Sequence",
+      "category": "Carousel",
+      "frames": 3,
+      "aspect_ratio": "9:16",
+      "background": "#0A0A0A",
+      "layers": [
+        {
+          "id": "l56",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.05,
+          "width": 0.333,
+          "height": 0.6,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l57",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.68,
+          "width": 0.333,
+          "height": 0.27,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l58",
+          "type": "image",
+          "x": 0.333,
+          "y": 0.0,
+          "width": 0.334,
+          "height": 0.5,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l59",
+          "type": "image",
+          "x": 0.333,
+          "y": 0.5,
+          "width": 0.334,
+          "height": 0.5,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l60",
+          "type": "image",
+          "x": 0.667,
+          "y": 0.0,
+          "width": 0.333,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t16_widescreen",
+      "name": "Widescreen Cinema",
+      "category": "Carousel",
+      "frames": 5,
+      "aspect_ratio": "4:5",
+      "background": "#1A1A1A",
+      "layers": [
+        {
+          "id": "l61",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 0.2,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l62",
+          "type": "image",
+          "x": 0.2,
+          "y": 0.0,
+          "width": 0.2,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l63",
+          "type": "image",
+          "x": 0.4,
+          "y": 0.0,
+          "width": 0.2,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l64",
+          "type": "image",
+          "x": 0.6,
+          "y": 0.0,
+          "width": 0.2,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l65",
+          "type": "image",
+          "x": 0.8,
+          "y": 0.0,
+          "width": 0.2,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t17_vertical_journey",
+      "name": "Vertical Journey",
+      "category": "Carousel",
+      "frames": 3,
+      "aspect_ratio": "9:16",
+      "background": "#FAFAFA",
+      "layers": [
+        {
+          "id": "l66",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.04,
+          "width": 0.333,
+          "height": 0.92,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 12,
+          "zIndex": 0
+        },
+        {
+          "id": "l67",
+          "type": "image",
+          "x": 0.334,
+          "y": 0.04,
+          "width": 0.333,
+          "height": 0.44,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 12,
+          "zIndex": 0
+        },
+        {
+          "id": "l68",
+          "type": "image",
+          "x": 0.334,
+          "y": 0.52,
+          "width": 0.333,
+          "height": 0.44,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 12,
+          "zIndex": 0
+        },
+        {
+          "id": "l69",
+          "type": "image",
+          "x": 0.667,
+          "y": 0.04,
+          "width": 0.333,
+          "height": 0.28,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        },
+        {
+          "id": "l70",
+          "type": "image",
+          "x": 0.667,
+          "y": 0.36,
+          "width": 0.333,
+          "height": 0.28,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        },
+        {
+          "id": "l71",
+          "type": "image",
+          "x": 0.667,
+          "y": 0.68,
+          "width": 0.333,
+          "height": 0.28,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t18_horizontal_flow",
+      "name": "Horizontal Flow",
+      "category": "Carousel",
+      "frames": 4,
+      "aspect_ratio": "4:5",
+      "background": "#0D0D0D",
+      "layers": [
+        {
+          "id": "l72",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 0.25,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l73",
+          "type": "image",
+          "x": 0.25,
+          "y": 0.0,
+          "width": 0.25,
+          "height": 0.5,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l74",
+          "type": "image",
+          "x": 0.25,
+          "y": 0.5,
+          "width": 0.25,
+          "height": 0.5,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l75",
+          "type": "image",
+          "x": 0.502,
+          "y": 0.04,
+          "width": 0.24,
+          "height": 0.92,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 0
+        },
+        {
+          "id": "l76",
+          "type": "image",
+          "x": 0.75,
+          "y": 0.0,
+          "width": 0.125,
+          "height": 1.0,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l77",
+          "type": "image",
+          "x": 0.875,
+          "y": 0.0,
+          "width": 0.125,
+          "height": 0.5,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l78",
+          "type": "image",
+          "x": 0.875,
+          "y": 0.5,
+          "width": 0.125,
+          "height": 0.5,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t19_magazine_cover",
+      "name": "Magazine Cover",
+      "category": "Creator",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#0D0D0D",
+      "layers": [
+        {
+          "id": "l79",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1.0,
+          "height": 0.72,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l80",
+          "type": "image",
+          "x": 0.04,
+          "y": 0.76,
+          "width": 0.44,
+          "height": 0.14,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 4,
+          "zIndex": 0
+        },
+        {
+          "id": "l81",
+          "type": "image",
+          "x": 0.52,
+          "y": 0.76,
+          "width": 0.44,
+          "height": 0.14,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 4,
+          "zIndex": 0
+        },
+        {
+          "id": "l82",
+          "type": "text",
+          "x": 0.05,
+          "y": 0.73,
+          "width": 0.9,
+          "height": 0.06,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 10,
+          "text": "YOUR STORY",
+          "fontSize": 24.0,
+          "color": 4294967295
+        }
+      ]
+    },
+    {
+      "id": "t20_text_dominant",
+      "name": "Text Dominant",
+      "category": "Creator",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#FFFFFF",
+      "layers": [
+        {
+          "id": "l83",
+          "type": "image",
+          "x": 0.2,
+          "y": 0.04,
+          "width": 0.6,
+          "height": 0.36,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 4,
+          "zIndex": 0
+        },
+        {
+          "id": "l84",
+          "type": "text",
+          "x": 0.05,
+          "y": 0.44,
+          "width": 0.9,
+          "height": 0.1,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 10,
+          "text": "ADD YOUR TITLE",
+          "fontSize": 28.0,
+          "color": 4279308561
+        },
+        {
+          "id": "l85",
+          "type": "text",
+          "x": 0.08,
+          "y": 0.57,
+          "width": 0.84,
+          "height": 0.06,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 10,
+          "text": "Your caption goes here",
+          "fontSize": 18.0,
+          "color": 4283782485
+        },
+        {
+          "id": "l86",
+          "type": "image",
+          "x": 0.06,
+          "y": 0.68,
+          "width": 0.38,
+          "height": 0.26,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 4,
+          "zIndex": 0
+        },
+        {
+          "id": "l87",
+          "type": "image",
+          "x": 0.56,
+          "y": 0.68,
+          "width": 0.38,
+          "height": 0.26,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 4,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t21_cutout_style",
+      "name": "Cutout Style",
+      "category": "Creator",
+      "frames": 1,
+      "aspect_ratio": "4:5",
+      "background": "#EDE8DE",
+      "layers": [
+        {
+          "id": "l88",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1.0,
+          "height": 0.62,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l89",
+          "type": "image",
+          "x": 0.03,
+          "y": 0.66,
+          "width": 0.44,
+          "height": 0.3,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 32,
+          "zIndex": 0
+        },
+        {
+          "id": "l90",
+          "type": "image",
+          "x": 0.53,
+          "y": 0.66,
+          "width": 0.44,
+          "height": 0.3,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 32,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t22_luxury_black",
+      "name": "Luxury Black",
+      "category": "Creator",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#0C0C0C",
+      "layers": [
+        {
+          "id": "l91",
+          "type": "image",
+          "x": 0.06,
+          "y": 0.12,
+          "width": 0.88,
+          "height": 0.58,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 2,
+          "zIndex": 0
+        },
+        {
+          "id": "l92",
+          "type": "text",
+          "x": 0.15,
+          "y": 0.76,
+          "width": 0.7,
+          "height": 0.07,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 10,
+          "text": "LUXURY",
+          "fontSize": 34.0,
+          "color": 4294967295
+        },
+        {
+          "id": "l93",
+          "type": "text",
+          "x": 0.2,
+          "y": 0.85,
+          "width": 0.6,
+          "height": 0.05,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 10,
+          "text": "Editorial Collection",
+          "fontSize": 16.0,
+          "color": 4294967295
+        }
+      ]
+    },
+    {
+      "id": "t23_before_after",
+      "name": "Before & After",
+      "category": "Creator",
+      "frames": 2,
+      "aspect_ratio": "1:1",
+      "background": "#FFFFFF",
+      "layers": [
+        {
+          "id": "l94",
+          "type": "image",
+          "x": 0.01,
+          "y": 0.01,
+          "width": 0.48,
+          "height": 0.98,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l95",
+          "type": "image",
+          "x": 0.51,
+          "y": 0.01,
+          "width": 0.48,
+          "height": 0.98,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t24_gradient_story",
+      "name": "Gradient Story",
+      "category": "Creator",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#18181B",
+      "layers": [
+        {
+          "id": "l96",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1.0,
+          "height": 0.8,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l97",
+          "type": "text",
+          "x": 0.06,
+          "y": 0.83,
+          "width": 0.88,
+          "height": 0.09,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 10,
+          "text": "TAP TO EDIT CAPTION",
+          "fontSize": 20.0,
+          "color": 4294967295
+        }
+      ]
+    },
+    {
+      "id": "t25_diagonal_drift",
+      "name": "Diagonal Drift",
+      "category": "Creative",
+      "frames": 2,
+      "aspect_ratio": "4:5",
+      "background": "#1A1A1A",
+      "layers": [
+        {
+          "id": "l98",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.05,
+          "width": 0.54,
+          "height": 0.9,
+          "rotation": -0.05,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l99",
+          "type": "image",
+          "x": 0.46,
+          "y": 0.05,
+          "width": 0.54,
+          "height": 0.9,
+          "rotation": 0.03,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "t26_circular_gallery",
+      "name": "Circular Gallery",
+      "category": "Creative",
+      "frames": 1,
+      "aspect_ratio": "1:1",
+      "background": "#F7F7F7",
+      "layers": [
+        {
+          "id": "l100",
+          "type": "image",
+          "x": 0.04,
+          "y": 0.04,
+          "width": 0.42,
+          "height": 0.42,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 999,
+          "zIndex": 0
+        },
+        {
+          "id": "l101",
+          "type": "image",
+          "x": 0.54,
+          "y": 0.04,
+          "width": 0.42,
+          "height": 0.42,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 999,
+          "zIndex": 0
+        },
+        {
+          "id": "l102",
+          "type": "image",
+          "x": 0.29,
+          "y": 0.54,
+          "width": 0.42,
+          "height": 0.42,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 999,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t27_layered_cards",
+      "name": "Layered Cards",
+      "category": "Creative",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#1C1C2E",
+      "layers": [
+        {
+          "id": "l103",
+          "type": "image",
+          "x": 0.12,
+          "y": 0.05,
+          "width": 0.72,
+          "height": 0.42,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 20,
+          "zIndex": 0
+        },
+        {
+          "id": "l104",
+          "type": "image",
+          "x": 0.07,
+          "y": 0.13,
+          "width": 0.72,
+          "height": 0.42,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 20,
+          "zIndex": 1
+        },
+        {
+          "id": "l105",
+          "type": "image",
+          "x": 0.02,
+          "y": 0.21,
+          "width": 0.72,
+          "height": 0.42,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 20,
+          "zIndex": 2
+        },
+        {
+          "id": "l106",
+          "type": "image",
+          "x": 0.05,
+          "y": 0.66,
+          "width": 0.9,
+          "height": 0.3,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 20,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t28_parallax",
+      "name": "Parallax Layers",
+      "category": "Creative",
+      "frames": 1,
+      "aspect_ratio": "4:5",
+      "background": "#1A1A2E",
+      "layers": [
+        {
+          "id": "l107",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1.0,
+          "height": 0.68,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l108",
+          "type": "image",
+          "x": 0.08,
+          "y": 0.3,
+          "width": 0.52,
+          "height": 0.46,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 8,
+          "zIndex": 1
+        },
+        {
+          "id": "l109",
+          "type": "image",
+          "x": 0.52,
+          "y": 0.48,
+          "width": 0.44,
+          "height": 0.4,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 16,
+          "zIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "t29_zoom_illusion",
+      "name": "Zoom Illusion",
+      "category": "Advanced",
+      "frames": 3,
+      "aspect_ratio": "1:1",
+      "background": "#111111",
+      "layers": [
+        {
+          "id": "l110",
+          "type": "image",
+          "x": 0.04,
+          "y": 0.2,
+          "width": 0.26,
+          "height": 0.6,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l111",
+          "type": "image",
+          "x": 0.36,
+          "y": 0.12,
+          "width": 0.28,
+          "height": 0.76,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l112",
+          "type": "image",
+          "x": 0.68,
+          "y": 0.04,
+          "width": 0.3,
+          "height": 0.92,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "t30_abstract_art",
+      "name": "Abstract Art",
+      "category": "Advanced",
+      "frames": 1,
+      "aspect_ratio": "9:16",
+      "background": "#2D1B69",
+      "layers": [
+        {
+          "id": "l113",
+          "type": "image",
+          "x": 0.0,
+          "y": 0.12,
+          "width": 0.78,
+          "height": 0.55,
+          "rotation": -0.15,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 0
+        },
+        {
+          "id": "l114",
+          "type": "image",
+          "x": 0.72,
+          "y": 0.0,
+          "width": 0.28,
+          "height": 0.45,
+          "rotation": 0.0,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 1
+        },
+        {
+          "id": "l115",
+          "type": "image",
+          "x": 0.05,
+          "y": 0.72,
+          "width": 0.55,
+          "height": 0.24,
+          "rotation": 0.08,
+          "opacity": 1.0,
+          "borderRadius": 0,
+          "zIndex": 2
+        }
+      ]
+    }
+  ]
+}

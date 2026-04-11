@@ -89,6 +89,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             child: StoryEditorScreen(
               layoutId: (state.uri.queryParameters['layoutId'] ?? 'story_split'),
               projectId: state.uri.queryParameters['projectId'],
+              filterName: state.uri.queryParameters['filterName'],
             ),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);

@@ -149,9 +149,14 @@ class GalleryNotifier extends Notifier<List<GalleryProject>> {
     final id = existingId ?? DateTime.now().millisecondsSinceEpoch.toString();
 
     // Ensure all slot images are copied to permanent storage.
+    // Text slots (keys ending in '_txt') contain plain strings — not file paths.
     final permanentSlots = <String, String>{};
     for (final entry in slots.entries) {
-      permanentSlots[entry.key] = await _ensurePermanent(entry.value);
+      if (entry.key.endsWith('_txt')) {
+        permanentSlots[entry.key] = entry.value; // text → store as-is
+      } else {
+        permanentSlots[entry.key] = await _ensurePermanent(entry.value);
+      }
     }
     
     // We arbitrarily pick the first slot image as the default imagePath,

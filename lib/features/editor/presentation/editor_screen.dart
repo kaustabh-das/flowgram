@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -27,6 +28,20 @@ import 'package:image_cropper/image_cropper.dart';
 
 enum EditorStatus { idle, picking, loading, ready, processing, error }
 
+/// Lightweight snapshot of adjustable properties used by the undo/redo stack.
+class _AdjustSnapshot {
+  const _AdjustSnapshot({
+    required this.brightness,
+    required this.contrast,
+    required this.saturation,
+    required this.isVintage,
+  });
+  final double brightness;
+  final double contrast;
+  final double saturation;
+  final bool isVintage;
+}
+
 class EditorImageState {
   const EditorImageState({
     this.status = EditorStatus.idle,
@@ -40,6 +55,8 @@ class EditorImageState {
     this.contrast = 0.0,
     this.saturation = 0.0,
     this.isVintage = false,
+    this.canUndo = false,
+    this.canRedo = false,
   });
 
   final EditorStatus status;
@@ -54,6 +71,8 @@ class EditorImageState {
   final double contrast;
   final double saturation;
   final bool isVintage;
+  final bool canUndo;
+  final bool canRedo;
 
   bool get hasImage => sourceFile != null && displayImage != null;
 
@@ -69,6 +88,8 @@ class EditorImageState {
     double? contrast,
     double? saturation,
     bool? isVintage,
+    bool? canUndo,
+    bool? canRedo,
   }) =>
       EditorImageState(
         status: status ?? this.status,
@@ -82,6 +103,8 @@ class EditorImageState {
         contrast: contrast ?? this.contrast,
         saturation: saturation ?? this.saturation,
         isVintage: isVintage ?? this.isVintage,
+        canUndo: canUndo ?? this.canUndo,
+        canRedo: canRedo ?? this.canRedo,
       );
 
   // Cleared state keeps the status but drops all image data.
@@ -100,9 +123,57 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
   final ImageCacheService _cache;
   final GalleryNotifier _galleryNotifier;
 
-  // Cancel token — incremented each time a new pick/load starts so that
-  // stale async continuations silently no-op instead of updating state.
+  // Cancel token — incremented each time a new pick/load starts.
   int _token = 0;
+
+  // ── Undo / Redo history ───────────────────────────────────────────
+  final List<_AdjustSnapshot> _undoStack = [];
+  final List<_AdjustSnapshot> _redoStack = [];
+
+  _AdjustSnapshot get _snapshot => _AdjustSnapshot(
+        brightness: state.brightness,
+        contrast: state.contrast,
+        saturation: state.saturation,
+        isVintage: state.isVintage,
+      );
+
+  /// Call this BEFORE applying a change to record the previous state.
+  void commitToHistory() {
+    _undoStack.add(_snapshot);
+    _redoStack.clear();
+    state = state.copyWith(
+      canUndo: true,
+      canRedo: false,
+    );
+  }
+
+  void undo() {
+    if (_undoStack.isEmpty) return;
+    _redoStack.add(_snapshot);
+    final prev = _undoStack.removeLast();
+    state = state.copyWith(
+      brightness: prev.brightness,
+      contrast: prev.contrast,
+      saturation: prev.saturation,
+      isVintage: prev.isVintage,
+      canUndo: _undoStack.isNotEmpty,
+      canRedo: true,
+    );
+  }
+
+  void redo() {
+    if (_redoStack.isEmpty) return;
+    _undoStack.add(_snapshot);
+    final next = _redoStack.removeLast();
+    state = state.copyWith(
+      brightness: next.brightness,
+      contrast: next.contrast,
+      saturation: next.saturation,
+      isVintage: next.isVintage,
+      canUndo: true,
+      canRedo: _redoStack.isNotEmpty,
+    );
+  }
 
   // ── Public methods ────────────────────────────────────────────────
 
@@ -177,6 +248,7 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
 
   void setVintage(bool value) {
     if (!mounted) return;
+    commitToHistory(); // record before toggling
     state = state.copyWith(isVintage: value);
   }
 
@@ -338,7 +410,6 @@ class EditorScreen extends ConsumerStatefulWidget {
 }
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
-  final GlobalKey _previewBoundaryKey = GlobalKey();
 
   @override
   void initState() {
@@ -387,6 +458,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 state: state,
                 onClear: notifier.clear,
                 onSave: () => _onSaveToProjects(context, state),
+                onClose: () => context.pop(),
+                onUndo: notifier.undo,
+                onRedo: notifier.redo,
               ),
 
               // ── Preview area ─────────────────────────────────────
@@ -442,12 +516,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             label: 'Processing…',
             showSpinner: true,
           ),
-        EditorStatus.ready when state.hasImage => RepaintBoundary(
-            key: _previewBoundaryKey,
-            child: _ImagePreview(
-              key: ValueKey(state.sourceFile!.path),
-              state: state,
-            ),
+        EditorStatus.ready when state.hasImage => _ImagePreview(
+            key: ValueKey(state.sourceFile!.path),
+            state: state,
           ),
         EditorStatus.error => _ErrorPreview(
             key: const ValueKey('error'),
@@ -481,18 +552,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   Future<void> _onSaveToProjects(BuildContext context, EditorImageState state) async {
     if (state.sourceFile == null) return;
     try {
-      final boundary = _previewBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
-
-      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final Uint8List pngBytes = byteData!.buffer.asUint8List();
-
       ref.read(galleryProvider.notifier).addProject(
-            imagePath: state.sourceFile!.path,
-            thumbnail: state.thumbnail ?? pngBytes,
-          );
-
+        imagePath: state.sourceFile!.path,
+        thumbnail: state.thumbnail ?? Uint8List(0),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -510,44 +573,108 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     }
   }
 
+  /// Exports the image at its original pixel dimensions with colour filters
+  /// applied via canvas — no UI widget capture, no rounded corners, no margins.
   Future<void> _onExport(BuildContext context, EditorImageState state) async {
-    if (state.sourceFile == null) return;
-    
-    try {
-      final boundary = _previewBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
+    if (state.displayImage == null || state.sourceFile == null) return;
 
-      final ui.Image image = await boundary.toImage(pixelRatio: 4.0); // Ultra-high resolution export
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final Uint8List pngBytes = byteData!.buffer.asUint8List();
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Exporting…'), duration: Duration(seconds: 10)),
+      );
+
+      final src = state.displayImage!;
+
+      // Build the same colour filter matrices used by the preview widget.
+      final filterMatrices = <List<double>>[];
+      if (state.isVintage) {
+        filterMatrices.add(ColorFilterAddons.sepia(0.6));
+        filterMatrices.add(ColorFilterAddons.saturation(-0.15));
+        filterMatrices.add(ColorFilterAddons.contrast(0.05));
+      }
+      if (state.brightness != 0) filterMatrices.add(ColorFilterAddons.brightness(state.brightness));
+      if (state.contrast != 0)   filterMatrices.add(ColorFilterAddons.contrast(state.contrast));
+      if (state.saturation != 0) filterMatrices.add(ColorFilterAddons.saturation(state.saturation));
+
+      // Draw the raw decoded image onto a canvas at its native pixel size.
+      // This preserves the original dimensions and skips all UI decorations
+      // (no ClipRRect, no margins, no shadow — pure image pixels).
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final paint = Paint();
+      if (filterMatrices.isNotEmpty) {
+        paint.colorFilter = ColorFilter.matrix(
+          _composeColorMatrices(filterMatrices),
+        );
+      }
+      canvas.drawImage(src, Offset.zero, paint);
+      final picture = recorder.endRecording();
+      final exportImage = await picture.toImage(src.width, src.height);
+      final byteData = await exportImage.toByteData(format: ui.ImageByteFormat.png);
+      exportImage.dispose();
+      final pngBytes = byteData!.buffer.asUint8List();
 
       final success = await ref.read(exportServiceProvider).saveImageToGallery(pngBytes);
 
-      // Save to gallery provider for the home screen recent-edits grid
-      if (success && state.thumbnail != null) {
+      if (success) {
         ref.read(galleryProvider.notifier).addProject(
-              imagePath: state.sourceFile!.path,
-              thumbnail: state.thumbnail!,
-            );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Image flawlessly exported to Gallery! ✓')),
-          );
-        }
-      } else if (!success) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save to Gallery!')),
-          );
-        }
+          imagePath: state.sourceFile!.path,
+          thumbnail: state.thumbnail ?? pngBytes,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Exported to Gallery! ✓' : 'Failed to save to Gallery!'),
+            backgroundColor: success ? AppColors.accentCyan : Colors.red,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export error: $e')),
+          SnackBar(content: Text('Export error: $e'), backgroundColor: Colors.red),
         );
       }
     }
+  }
+
+  /// Composes multiple 4×5 colour filter matrices into one by sequential
+  /// multiplication (each matrix applied after the previous one).
+  List<double> _composeColorMatrices(List<List<double>> matrices) {
+    // Identity 4×5 matrix.
+    List<double> result = [
+      1, 0, 0, 0, 0,
+      0, 1, 0, 0, 0,
+      0, 0, 1, 0, 0,
+      0, 0, 0, 1, 0,
+    ];
+    for (final m in matrices) {
+      result = _multiplyColorMatrix(m, result);
+    }
+    return result;
+  }
+
+  /// Multiplies two 4×5 colour matrices: result = a ∘ b  (a applied after b).
+  /// Treats both as 5×5 homogeneous matrices with [0,0,0,0,1] as the 5th row.
+  List<double> _multiplyColorMatrix(List<double> a, List<double> b) {
+    final out = List<double>.filled(20, 0.0);
+    for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < 5; j++) {
+        double v = 0.0;
+        for (int k = 0; k < 4; k++) {
+          v += a[i * 5 + k] * b[k * 5 + j];
+        }
+        // The 5th homogeneous row of b is [0,0,0,0,1], so only the offset
+        // column (j==4) gets an extra contribution from a's offset.
+        if (j == 4) v += a[i * 5 + 4];
+        out[i * 5 + j] = v;
+      }
+    }
+    return out;
   }
 }
 
@@ -563,12 +690,18 @@ class _EditorAppBar extends StatelessWidget {
     required this.state,
     required this.onClear,
     required this.onSave,
+    required this.onClose,
+    required this.onUndo,
+    required this.onRedo,
   });
 
   final double topPad;
   final EditorImageState state;
   final VoidCallback onClear;
   final VoidCallback onSave;
+  final VoidCallback onClose;
+  final VoidCallback onUndo;
+  final VoidCallback onRedo;
 
   @override
   Widget build(BuildContext context) {
@@ -576,6 +709,9 @@ class _EditorAppBar extends StatelessWidget {
       padding: EdgeInsets.only(top: topPad + 8, left: 16, right: 16, bottom: 8),
       child: Row(
         children: [
+          // Close button
+          _GlassIconButton(icon: Icons.close_rounded, onTap: onClose),
+          const SizedBox(width: 12),
           ShaderMask(
             shaderCallback: (b) => AppColors.accentGradient.createShader(b),
             blendMode: BlendMode.srcIn,
@@ -603,11 +739,22 @@ class _EditorAppBar extends StatelessWidget {
           ),
           const Spacer(),
           if (state.hasImage) ...[
-            _GlassIconButton(icon: Icons.save_rounded, onTap: onSave),
+            _GlassIconButton(
+              icon: Icons.save_rounded,
+              onTap: onSave,
+            ),
             const SizedBox(width: 8),
-            _GlassIconButton(icon: Icons.undo_rounded, onTap: () {}),
+            _GlassIconButton(
+              icon: Icons.undo_rounded,
+              onTap: state.canUndo ? onUndo : null,
+              dimmed: !state.canUndo,
+            ),
             const SizedBox(width: 8),
-            _GlassIconButton(icon: Icons.redo_rounded, onTap: () {}),
+            _GlassIconButton(
+              icon: Icons.redo_rounded,
+              onTap: state.canRedo ? onRedo : null,
+              dimmed: !state.canRedo,
+            ),
             const SizedBox(width: 8),
             _GlassIconButton(icon: Icons.delete_outline_rounded, onTap: onClear),
           ],
@@ -618,19 +765,24 @@ class _EditorAppBar extends StatelessWidget {
 }
 
 class _GlassIconButton extends StatelessWidget {
-  const _GlassIconButton({required this.icon, required this.onTap});
+  const _GlassIconButton({required this.icon, required this.onTap, this.dimmed = false});
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool dimmed;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: GlassCard(
-        padding: const EdgeInsets.all(8),
-        borderRadius: 12,
-        blur: 8,
-        child: Icon(icon, size: 18, color: AppColors.textPrimary),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: dimmed ? 0.3 : 1.0,
+        child: GlassCard(
+          padding: const EdgeInsets.all(8),
+          borderRadius: 12,
+          blur: 8,
+          child: Icon(icon, size: 18, color: AppColors.textPrimary),
+        ),
       ),
     );
   }
@@ -1368,6 +1520,7 @@ class _AdjustPanelState extends State<_AdjustPanel> {
               min: -1.0,
               max: 1.0,
               onChanged: onChanged,
+              onChangeStart: (_) => widget.notifier.commitToHistory(),
             ),
           ),
         ],

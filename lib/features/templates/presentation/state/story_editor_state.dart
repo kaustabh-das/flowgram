@@ -1,30 +1,45 @@
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class CollageSlotData {
-  const CollageSlotData({
+import '../../domain/collage_layout.dart';
+
+class LayerData {
+  const LayerData({
     this.imagePath,
     this.offset = Offset.zero,
     this.scale = 1.0,
     this.isLoading = false,
+    this.text,
+    this.fontFamily,
+    this.color,
   });
 
   final String? imagePath;
   final Offset offset;
   final double scale;
   final bool isLoading;
+  
+  final String? text;
+  final String? fontFamily;
+  final int? color;
 
-  CollageSlotData copyWith({
+  LayerData copyWith({
     String? imagePath,
     Offset? offset,
     double? scale,
     bool? isLoading,
+    String? text,
+    String? fontFamily,
+    int? color,
   }) {
-    return CollageSlotData(
+    return LayerData(
       imagePath: imagePath ?? this.imagePath,
       offset: offset ?? this.offset,
       scale: scale ?? this.scale,
       isLoading: isLoading ?? this.isLoading,
+      text: text ?? this.text,
+      fontFamily: fontFamily ?? this.fontFamily,
+      color: color ?? this.color,
     );
   }
 }
@@ -32,21 +47,27 @@ class CollageSlotData {
 class StoryEditorState {
   const StoryEditorState({
     this.projectId,
-    this.slots = const {},
+    this.layers = const {},
+    this.selectedLayerId,
+    this.isDragging = false,
   });
 
-  // Maps slot IDs to their data (image path, panning offset, scale)
-  final Map<String, CollageSlotData> slots;
-  // If editing an existing project, track its ID
+  final Map<String, LayerData> layers;
   final String? projectId;
+  final String? selectedLayerId;
+  final bool isDragging;
 
   StoryEditorState copyWith({
     String? projectId,
-    Map<String, CollageSlotData>? slots,
+    Map<String, LayerData>? layers,
+    String? selectedLayerId,
+    bool? isDragging,
   }) {
     return StoryEditorState(
       projectId: projectId ?? this.projectId,
-      slots: slots ?? this.slots,
+      layers: layers ?? this.layers,
+      selectedLayerId: selectedLayerId ?? this.selectedLayerId,
+      isDragging: isDragging ?? this.isDragging,
     );
   }
 }
@@ -57,67 +78,99 @@ class StoryEditorNotifier extends AutoDisposeNotifier<StoryEditorState> {
     return const StoryEditorState();
   }
 
+  void setIsDragging(bool val) {
+    state = state.copyWith(isDragging: val);
+  }
+
   void setProjectId(String projectId) {
     state = state.copyWith(projectId: projectId);
   }
 
-  void initFromProject(String projectId, Map<String, String> existingSlots) {
-    final updatedSlots = <String, CollageSlotData>{};
-    for (final entry in existingSlots.entries) {
-      updatedSlots[entry.key] = CollageSlotData(imagePath: entry.value);
-    }
-    state = StoryEditorState(projectId: projectId, slots: updatedSlots);
+  void selectLayer(String? layerId) {
+    state = state.copyWith(selectedLayerId: layerId);
   }
 
-  void setImage(String slotId, String imagePath) {
-    final currentSlot = state.slots[slotId] ?? const CollageSlotData();
-    final updatedSlots = Map<String, CollageSlotData>.from(state.slots);
+  void initFromProject(String projectId, Map<String, String> existingSlots, List<TemplateLayer> templateLayers) {
+    final updatedLayers = <String, LayerData>{};
     
-    // Reset offset/scale when a new image is loaded into the slot
-    updatedSlots[slotId] = currentSlot.copyWith(
+    final imageSlots = existingSlots.entries.where((e) => !e.key.endsWith('_txt')).toList();
+    final textSlots = existingSlots.entries.where((e) => e.key.endsWith('_txt')).toList();
+
+    // Rehydrate texts properly
+    for (final entry in textSlots) {
+      final rawId = entry.key.replaceAll('_txt', '');
+      updatedLayers[rawId] = (updatedLayers[rawId] ?? const LayerData()).copyWith(text: entry.value);
+    }
+
+    // Rehydrate images safely mapping old/broken ids to current templated image layers
+    int legacyIdx = 0;
+    final imageTemplateLayers = templateLayers.whereType<ImageLayer>().toList();
+
+    for (final entry in imageSlots) {
+      if (templateLayers.any((l) => l.id == entry.key)) {
+        updatedLayers[entry.key] = (updatedLayers[entry.key] ?? const LayerData()).copyWith(imagePath: entry.value);
+      } else {
+        // Fallback: sequential mapping
+        if (legacyIdx < imageTemplateLayers.length) {
+          final fallbackId = imageTemplateLayers[legacyIdx].id;
+          updatedLayers[fallbackId] = (updatedLayers[fallbackId] ?? const LayerData()).copyWith(imagePath: entry.value);
+          legacyIdx++;
+        }
+      }
+    }
+
+    state = StoryEditorState(projectId: projectId, layers: updatedLayers);
+  }
+
+  void setImage(String layerId, String imagePath) {
+    final current = state.layers[layerId] ?? const LayerData();
+    final updated = Map<String, LayerData>.from(state.layers);
+    
+    updated[layerId] = current.copyWith(
       imagePath: imagePath,
       offset: Offset.zero,
       scale: 1.0, 
       isLoading: false,
     );
-    state = state.copyWith(slots: updatedSlots);
+    state = state.copyWith(layers: updated, selectedLayerId: layerId);
   }
 
-  void setLoading(String slotId, bool isLoading) {
-    final currentSlot = state.slots[slotId] ?? const CollageSlotData();
-    final updatedSlots = Map<String, CollageSlotData>.from(state.slots);
-    updatedSlots[slotId] = currentSlot.copyWith(isLoading: isLoading);
-    state = state.copyWith(slots: updatedSlots);
+  void setText(String layerId, String text) {
+    final current = state.layers[layerId] ?? const LayerData();
+    final updated = Map<String, LayerData>.from(state.layers);
+    updated[layerId] = current.copyWith(text: text);
+    state = state.copyWith(layers: updated);
   }
 
-  void updateTransform(String slotId, Offset deltaOffset, double deltaScale) {
-    final currentSlot = state.slots[slotId] ?? const CollageSlotData();
-    final updatedSlots = Map<String, CollageSlotData>.from(state.slots);
+  void setLoading(String layerId, bool isLoading) {
+    final current = state.layers[layerId] ?? const LayerData();
+    final updated = Map<String, LayerData>.from(state.layers);
+    updated[layerId] = current.copyWith(isLoading: isLoading);
+    state = state.copyWith(layers: updated);
+  }
+
+  void setTransform(String layerId, Offset newOffset, double newScale) {
+    final current = state.layers[layerId] ?? const LayerData();
+    final updated = Map<String, LayerData>.from(state.layers);
     
-    // Clamp scale to reasonable values
-    final newScale = (currentSlot.scale * deltaScale).clamp(0.5, 5.0);
-    final newOffset = currentSlot.offset + deltaOffset;
-    
-    updatedSlots[slotId] = currentSlot.copyWith(
+    updated[layerId] = current.copyWith(
       offset: newOffset,
-      scale: newScale,
+      scale: newScale.clamp(0.1, 10.0),
     );
-    state = state.copyWith(slots: updatedSlots);
+    state = state.copyWith(layers: updated);
   }
 
-  void swapImages(String slot1Id, String slot2Id) {
-    if (slot1Id == slot2Id) return;
+  void swapImages(String layer1Id, String layer2Id) {
+    if (layer1Id == layer2Id) return;
     
-    final slot1 = state.slots[slot1Id] ?? const CollageSlotData();
-    final slot2 = state.slots[slot2Id] ?? const CollageSlotData();
+    final l1 = state.layers[layer1Id] ?? const LayerData();
+    final l2 = state.layers[layer2Id] ?? const LayerData();
     
-    final updatedSlots = Map<String, CollageSlotData>.from(state.slots);
+    final updated = Map<String, LayerData>.from(state.layers);
+    updated[layer1Id] = l2;
+    updated[layer2Id] = l1;
     
-    // Swap the data
-    updatedSlots[slot1Id] = slot2;
-    updatedSlots[slot2Id] = slot1;
-    
-    state = state.copyWith(slots: updatedSlots);
+    state = state.copyWith(layers: updated);
   }
 
   void reset() {

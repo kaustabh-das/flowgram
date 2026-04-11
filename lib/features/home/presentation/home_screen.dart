@@ -76,7 +76,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(height: 20),
 
             // Hero Banner
-            _PrequelHeroBanner(onTap: () => context.go(AppRoutes.editor)),
+            _PrequelHeroBanner(onTap: () => context.push(AppRoutes.editor)),
 
             const SizedBox(height: 32),
 

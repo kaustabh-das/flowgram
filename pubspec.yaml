@@ -43,7 +43,7 @@ dependencies:
   uuid: ^4.4.2
 
   # ── UI / Fonts ────────────────────────────────────────────────────
-  google_fonts: ^6.2.1
+  google_fonts: ^8.0.0
   flutter_svg: ^2.0.10+1
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
@@ -62,9 +62,6 @@ dev_dependencies:
   riverpod_generator: ^2.4.3
   freezed: ^2.5.7
   json_serializable: ^6.8.0
-  hive_generator: ^2.0.1
-  custom_lint: ^0.7.0
-  riverpod_lint: ^2.3.13
 
 flutter:
   uses-material-design: true
@@ -73,6 +70,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/fonts/
+    - assets/templates.json
 
 dependency_overrides:
   image_cropper_platform_interface: 7.1.0

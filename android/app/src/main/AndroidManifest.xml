@@ -21,7 +21,8 @@
     <application
         android:label="flowgram"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
 
         <!-- image_cropper requirement -->
         <activity

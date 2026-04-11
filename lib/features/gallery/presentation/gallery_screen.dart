@@ -51,6 +51,13 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   }
 
   Future<void> _deleteSelected() async {
+    if (_selectedIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No image selected')),
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -148,7 +155,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
                           '${AppRoutes.storyEditor}?layoutId=${project.layoutId}&projectId=${project.id}',
                         );
                       } else {
-                        context.go(
+                        context.push(
                           '${AppRoutes.editor}?path=${Uri.encodeComponent(project.imagePath)}',
                         );
                       }

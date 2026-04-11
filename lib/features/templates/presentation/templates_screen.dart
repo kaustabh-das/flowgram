@@ -2,112 +2,22 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/router/app_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../data/template_repository.dart';
+import '../domain/collage_layout.dart';
 
-// ── Template Model ────────────────────────────────────────────────────────────
-
-class _TemplateModel {
-  const _TemplateModel({
-    required this.name,
-    required this.category,
-    required this.aspectRatio,
-    required this.colors,
-    required this.icon,
-    this.isPro = false,
-    this.isNew = false,
-  });
-
-  final String name;
-  final String category;
-  final double aspectRatio; // width/height
-  final List<Color> colors;
-  final IconData icon;
-  final bool isPro;
-  final bool isNew;
-}
-
-// ── Template data ─────────────────────────────────────────────────────────────
-
-final _categories = ['All', 'Story', 'Reel', 'Square', 'Portrait', 'Mood'];
-
-final _templates = [
-  _TemplateModel(
-    name: 'Cinematic Noir',
-    category: 'Story',
-    aspectRatio: 9 / 16,
-    colors: [const Color(0xFF0D0D0D), const Color(0xFF1A0A2E)],
-    icon: Icons.movie_creation_rounded,
-    isNew: true,
-  ),
-  _TemplateModel(
-    name: 'Golden Hour',
-    category: 'Reel',
-    aspectRatio: 9 / 16,
-    colors: [const Color(0xFF2D1B00), const Color(0xFFFF7043)],
-    icon: Icons.wb_sunny_rounded,
-    isPro: true,
-  ),
-  _TemplateModel(
-    name: 'Neon Nights',
-    category: 'Square',
-    aspectRatio: 1 / 1,
-    colors: [const Color(0xFF0A001A), const Color(0xFF9B5DE5)],
-    icon: Icons.electric_bolt_rounded,
-  ),
-  _TemplateModel(
-    name: 'Ocean Dreams',
-    category: 'Story',
-    aspectRatio: 9 / 16,
-    colors: [const Color(0xFF001A2E), const Color(0xFF00D4FF)],
-    icon: Icons.waves_rounded,
-    isNew: true,
-  ),
-  _TemplateModel(
-    name: 'Moody Forest',
-    category: 'Portrait',
-    aspectRatio: 4 / 5,
-    colors: [const Color(0xFF0A1A0A), const Color(0xFF2D5016)],
-    icon: Icons.forest_rounded,
-    isPro: true,
-  ),
-  _TemplateModel(
-    name: 'Dreamy Pastel',
-    category: 'Mood',
-    aspectRatio: 9 / 16,
-    colors: [const Color(0xFF1A0A2E), const Color(0xFFE040FB)],
-    icon: Icons.cloud_rounded,
-  ),
-  _TemplateModel(
-    name: 'Desert Shot',
-    category: 'Square',
-    aspectRatio: 1 / 1,
-    colors: [const Color(0xFF2E1A0A), const Color(0xFFFF8C42)],
-    icon: Icons.landscape_rounded,
-    isPro: true,
-  ),
-  _TemplateModel(
-    name: 'Vintage Film',
-    category: 'Portrait',
-    aspectRatio: 4 / 5,
-    colors: [const Color(0xFF1A1200), const Color(0xFFC8A04A)],
-    icon: Icons.camera_roll_rounded,
-    isNew: true,
-  ),
-];
-
-// ── Screen ─────────────────────────────────────────────────────────────────────
-
-class TemplatesScreen extends StatefulWidget {
+class TemplatesScreen extends ConsumerStatefulWidget {
   const TemplatesScreen({super.key});
 
   @override
-  State<TemplatesScreen> createState() => _TemplatesScreenState();
+  ConsumerState<TemplatesScreen> createState() => _TemplatesScreenState();
 }
 
-class _TemplatesScreenState extends State<TemplatesScreen>
+class _TemplatesScreenState extends ConsumerState<TemplatesScreen>
     with SingleTickerProviderStateMixin {
   int _selectedCategory = 0;
   late final AnimationController _fadeCtrl;
@@ -127,53 +37,73 @@ class _TemplatesScreenState extends State<TemplatesScreen>
     super.dispose();
   }
 
-  List<_TemplateModel> get _filtered {
-    if (_selectedCategory == 0) return _templates;
-    final cat = _categories[_selectedCategory];
-    return _templates.where((t) => t.category == cat).toList();
+  List<TemplateModel> _getFiltered(TemplateRepository repo) {
+    if (repo.categories.isEmpty) return [];
+    
+    // Add "All" manually if not present, but our original static had "All".
+    // For simplicity, we filter by exact category or show all if index == 0.
+    // The JSON categories are ["Minimal", "Carousel", ...].
+    // Let's prepend "All" visually in the UI.
+    
+    if (_selectedCategory == 0) return repo.templates;
+    
+    // Ensure index bounds
+    if (_selectedCategory - 1 < repo.categories.length) {
+      final cat = repo.categories[_selectedCategory - 1];
+      return repo.templates.where((t) => t.category == cat).toList();
+    }
+    return repo.templates;
   }
 
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
+    final initAsync = ref.watch(templatesInitializationProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFF141414), // Solid dark prequel bg
-      body: Column(
-        children: [
-          // ── App bar ─────────────────────────────────────────
-          _TemplatesAppBar(topPad: topPad),
+      body: initAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accentCyan)),
+        error: (err, stack) => Center(child: Text('Error loading templates: $err', style: const TextStyle(color: Colors.white))),
+        data: (_) {
+          final repo = ref.read(templateRepositoryProvider);
+          final categoriesWithAll = ['All', ...repo.categories];
+          final filtered = _getFiltered(repo);
 
-          // ── Category chips ──────────────────────────────────
-          _CategoryChips(
-            categories: _categories,
-            selectedIndex: _selectedCategory,
-            onSelect: (i) => setState(() => _selectedCategory = i),
-          ),
+          return Column(
+            children: [
+              // ── App bar ─────────────────────────────────────────
+              _TemplatesAppBar(topPad: topPad),
 
-          const SizedBox(height: 16),
-
-          // ── Template grid ────────────────────────────────────
-          Expanded(
-            child: FadeTransition(
-              opacity: _fadeCtrl,
-              child: _TemplateGrid(
-                templates: _filtered,
-                onUse: (template) {
-                  // For demonstration, map 'Cinematic Noir' to filmstrip, else split.
-                  final layoutId = template.name == 'Cinematic Noir' 
-                      ? 'story_filmstrip' 
-                      : 'story_split';
-                  context.push('${AppRoutes.storyEditor}?layoutId=$layoutId');
-                },
+              // ── Category chips ──────────────────────────────────
+              _CategoryChips(
+                categories: categoriesWithAll,
+                selectedIndex: _selectedCategory,
+                onSelect: (i) => setState(() => _selectedCategory = i),
               ),
-            ),
-          ),
-        ],
+
+              const SizedBox(height: 16),
+
+              // ── Template grid ────────────────────────────────────
+              Expanded(
+                child: FadeTransition(
+                  opacity: _fadeCtrl,
+                  child: _TemplateGrid(
+                    templates: filtered,
+                    onUse: (template) {
+                      context.push('${AppRoutes.storyEditor}?layoutId=${template.id}&filterName=');
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
+
 
 // ── App Bar ──────────────────────────────────────────────────────────────────
 
@@ -289,8 +219,8 @@ class _TemplateGrid extends StatelessWidget {
     required this.onUse,
   });
 
-  final List<_TemplateModel> templates;
-  final ValueChanged<_TemplateModel> onUse;
+  final List<TemplateModel> templates;
+  final ValueChanged<TemplateModel> onUse;
 
   @override
   Widget build(BuildContext context) {
@@ -344,7 +274,7 @@ class _TemplateCard extends StatefulWidget {
     required this.onUse,
   });
 
-  final _TemplateModel template;
+  final TemplateModel template;
   final int index;
   final VoidCallback onUse;
 
@@ -375,9 +305,19 @@ class _TemplateCardState extends State<_TemplateCard>
   Widget build(BuildContext context) {
     final template = widget.template;
 
+    // Generate gradient based on background color
+    final HSLColor baseColor = HSLColor.fromColor(template.backgroundColor);
+    final isDark = template.backgroundColor.computeLuminance() < 0.5;
+    
+    // Create a dynamic gradient depending on luminance
+    final gradientColors = [
+      template.backgroundColor,
+      baseColor.withLightness((baseColor.lightness + (isDark ? 0.1 : -0.1)).clamp(0.0, 1.0)).toColor(),
+    ];
+
     return GestureDetector(
       onTapDown: (_) {
-  _ctrl.forward();
+        _ctrl.forward();
       },
       onTapUp: (_) {
         _ctrl.reverse();
@@ -394,13 +334,13 @@ class _TemplateCardState extends State<_TemplateCard>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             gradient: LinearGradient(
-              colors: template.colors,
+              colors: gradientColors,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             boxShadow: [
               BoxShadow(
-                color: template.colors.last.withValues(alpha: 0.3),
+                color: gradientColors.last.withValues(alpha: 0.3),
                 blurRadius: 14,
                 offset: const Offset(0, 6),
               ),
@@ -424,12 +364,12 @@ class _TemplateCardState extends State<_TemplateCard>
                       width: 1,
                     ),
                   ),
-                  child: Icon(template.icon, color: Colors.white70, size: 28),
+                  child: const Icon(Icons.panorama_rounded, color: Colors.white70, size: 28),
                 ),
               ),
 
-              // Badges
-              if (template.isNew || template.isPro)
+              // Multiple frames indicator
+              if (template.frames > 1)
                 Positioned(
                   top: 12,
                   left: 12,
@@ -437,12 +377,10 @@ class _TemplateCardState extends State<_TemplateCard>
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      color: template.isPro
-                          ? const Color(0xFFFFB347)
-                          : AppColors.accentCyan,
+                      color: AppColors.accentCyan,
                     ),
                     child: Text(
-                      template.isPro ? 'PRO' : 'NEW',
+                      '${template.frames} FRAMES',
                       style: const TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
@@ -492,11 +430,7 @@ class _TemplateCardState extends State<_TemplateCard>
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
-                              gradient: template.isPro
-                                  ? const LinearGradient(
-                                      colors: [Color(0xFFFFB347), Color(0xFFFF7043)],
-                                    )
-                                  : AppColors.accentGradient,
+                              gradient: AppColors.accentGradient,
                             ),
                             child: const Text(
                               'Use Template',

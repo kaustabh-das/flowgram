@@ -1,65 +1,157 @@
 import 'package:flutter/material.dart';
 
-/// Defines the geometry for a single image slot within a collage template.
-/// The [left], [top], [width], and [height] are relative values from 0.0 to 1.0
-/// defining percentage-based layout dimensions against the parent collage container.
-class CollageSlot {
-  const CollageSlot({
+abstract class TemplateLayer {
+  const TemplateLayer({
     required this.id,
-    required this.left,
-    required this.top,
+    required this.type,
+    required this.x,
+    required this.y,
     required this.width,
     required this.height,
+    this.rotation = 0.0,
+    this.opacity = 1.0,
+    this.borderRadius = 0.0,
+    this.zIndex = 0,
   });
 
   final String id;
-  final double left;
-  final double top;
+  final String type; // 'image', 'text'
+  final double x;
+  final double y;
   final double width;
   final double height;
+  final double rotation;
+  final double opacity;
+  final double borderRadius;
+  final int zIndex;
+
+  factory TemplateLayer.fromJson(Map<String, dynamic> json) {
+    if (json['type'] == 'text') {
+      return TextLayer.fromJson(json);
+    }
+    return ImageLayer.fromJson(json);
+  }
 }
 
-/// Defines the master layout configuration for a collage.
-class CollageLayout {
-  const CollageLayout({
+class ImageLayer extends TemplateLayer {
+  const ImageLayer({
+    required super.id,
+    required super.x,
+    required super.y,
+    required super.width,
+    required super.height,
+    super.rotation = 0.0,
+    super.opacity = 1.0,
+    super.borderRadius = 0.0,
+    super.zIndex = 0,
+  }) : super(type: 'image');
+
+  factory ImageLayer.fromJson(Map<String, dynamic> json) {
+    return ImageLayer(
+      id: json['id'],
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      width: (json['width'] as num).toDouble(),
+      height: (json['height'] as num).toDouble(),
+      rotation: (json['rotation'] as num?)?.toDouble() ?? 0.0,
+      opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
+      borderRadius: (json['borderRadius'] as num?)?.toDouble() ?? 0.0,
+      zIndex: json['zIndex'] as int? ?? 0,
+    );
+  }
+}
+
+class TextLayer extends TemplateLayer {
+  const TextLayer({
+    required super.id,
+    required super.x,
+    required super.y,
+    required super.width,
+    required super.height,
+    super.rotation = 0.0,
+    super.opacity = 1.0,
+    super.borderRadius = 0.0,
+    super.zIndex = 0,
+    this.text = "Tap to edit",
+    this.fontFamily = "Roboto",
+    this.color = 0xFFFFFFFF,
+    this.fontSize = 24.0,
+  }) : super(type: 'text');
+
+  final String text;
+  final String fontFamily;
+  final int color;
+  final double fontSize;
+
+  factory TextLayer.fromJson(Map<String, dynamic> json) {
+    return TextLayer(
+      id: json['id'],
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      width: (json['width'] as num).toDouble(),
+      height: (json['height'] as num).toDouble(),
+      rotation: (json['rotation'] as num?)?.toDouble() ?? 0.0,
+      opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
+      borderRadius: (json['borderRadius'] as num?)?.toDouble() ?? 0.0,
+      zIndex: json['zIndex'] as int? ?? 0,
+      text: json['text'] as String? ?? "Tap to edit",
+      fontFamily: json['fontFamily'] as String? ?? "Roboto",
+      color: json['color'] as int? ?? 0xFFFFFFFF,
+      fontSize: (json['fontSize'] as num?)?.toDouble() ?? 24.0,
+    );
+  }
+}
+
+class TemplateModel {
+  const TemplateModel({
     required this.id,
     required this.name,
+    required this.category,
+    required this.frames,
     required this.aspectRatio,
-    required this.slots,
-    this.backgroundColor = Colors.white,
+    required this.backgroundColor,
+    required this.layers,
   });
 
   final String id;
   final String name;
-  final double aspectRatio; // e.g. 9/16 for Instagram story
-  final List<CollageSlot> slots;
+  final String category;
+  final int frames;
+  final double aspectRatio; // of a SINGLE frame
   final Color backgroundColor;
-}
+  final List<TemplateLayer> layers;
 
-/// Pre-seeded layouts
-class StandardLayouts {
-  static const CollageLayout storySplit = CollageLayout(
-    id: 'story_split',
-    name: 'Story Split',
-    aspectRatio: 9 / 16,
-    backgroundColor: Color(0xFFF0F0F0),
-    slots: [
-      CollageSlot(id: 's1', left: 0.05, top: 0.05, width: 0.9, height: 0.425),
-      CollageSlot(id: 's2', left: 0.05, top: 0.525, width: 0.9, height: 0.425),
-    ],
-  );
+  factory TemplateModel.fromJson(Map<String, dynamic> json) {
+    // Parse aspect ratio string, e.g. "9:16" -> 9/16
+    double parsedAspectRatio = 1.0;
+    if (json['aspect_ratio'] is String) {
+      final parts = (json['aspect_ratio'] as String).split(':');
+      if (parts.length == 2) {
+        final w = double.tryParse(parts[0]);
+        final h = double.tryParse(parts[1]);
+        if (w != null && h != null) parsedAspectRatio = w / h;
+      }
+    }
 
-  static const CollageLayout storyFilmStrip = CollageLayout(
-    id: 'story_filmstrip',
-    name: 'Film Strip',
-    aspectRatio: 9 / 16,
-    backgroundColor: Color(0xFF141414),
-    slots: [
-      CollageSlot(id: 's1', left: 0.1, top: 0.1, width: 0.8, height: 0.23),
-      CollageSlot(id: 's2', left: 0.1, top: 0.38, width: 0.8, height: 0.23),
-      CollageSlot(id: 's3', left: 0.1, top: 0.66, width: 0.8, height: 0.23),
-    ],
-  );
+    // Parse background hex
+    Color bgColor = Colors.white;
+    if (json['background'] is String) {
+      String hex = json['background'] as String;
+      hex = hex.replaceAll('#', '');
+      if (hex.length == 6) hex = 'FF$hex';
+      bgColor = Color(int.parse(hex, radix: 16));
+    }
 
-  static const List<CollageLayout> all = [storySplit, storyFilmStrip];
+    return TemplateModel(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      category: json['category'] as String,
+      frames: json['frames'] as int? ?? 1,
+      aspectRatio: parsedAspectRatio,
+      backgroundColor: bgColor,
+      layers: (json['layers'] as List? ?? [])
+          .map((e) => TemplateLayer.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }
