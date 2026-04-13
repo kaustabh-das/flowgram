@@ -86,59 +86,65 @@ class _AppShellState extends State<AppShell> {
         extendBody: false,
         body: widget.child,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        floatingActionButton: Padding(
-          padding: const EdgeInsets.only(top: 24.0),
-          child: FloatingActionButton(
-            onPressed: () => context.push(AppRoutes.editor),
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            elevation: 4,
-            shape: const CircleBorder(),
-            child: const Icon(Icons.add_rounded, size: 32),
-          ),
-        ),
-        bottomNavigationBar: Container(
-          height: 64 + bottomPadding,
-          padding: EdgeInsets.only(bottom: bottomPadding),
-          decoration: const BoxDecoration(
-            color: Color(0xFF141414),
-            border: Border(top: BorderSide(color: Colors.white10, width: 1)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _AnimatedNavItem(
-                icon: Icons.image_outlined,
-                activeIcon: Icons.image_rounded,
-                label: 'Photo',
-                isSelected: currentIndex == 0,
-                onTap: () => context.go(AppRoutes.home),
+        // On editor routes: null (not SizedBox.shrink) so Scaffold gives the
+        // editor full body height and correct MediaQuery.padding.bottom.
+        floatingActionButton: currentIndex == -1
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(top: 24.0),
+                child: FloatingActionButton(
+                  onPressed: () => context.push(AppRoutes.editor),
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  elevation: 4,
+                  shape: const CircleBorder(),
+                  child: const Icon(Icons.add_rounded, size: 32),
+                ),
               ),
-              _AnimatedNavItem(
-                icon: Icons.play_circle_outline_rounded,
-                activeIcon: Icons.play_circle_filled_rounded,
-                label: 'Video',
-                isSelected: currentIndex == 1,
-                onTap: () => context.go(AppRoutes.video),
+        bottomNavigationBar: currentIndex == -1
+            ? null
+            : Container(
+                height: 64 + bottomPadding,
+                padding: EdgeInsets.only(bottom: bottomPadding),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF141414),
+                  border: Border(top: BorderSide(color: Colors.white10, width: 1)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _AnimatedNavItem(
+                      icon: Icons.image_outlined,
+                      activeIcon: Icons.image_rounded,
+                      label: 'Photo',
+                      isSelected: currentIndex == 0,
+                      onTap: () => context.go(AppRoutes.home),
+                    ),
+                    _AnimatedNavItem(
+                      icon: Icons.play_circle_outline_rounded,
+                      activeIcon: Icons.play_circle_filled_rounded,
+                      label: 'Video',
+                      isSelected: currentIndex == 1,
+                      onTap: () => context.go(AppRoutes.video),
+                    ),
+                    const SizedBox(width: 48),
+                    _AnimatedNavItem(
+                      icon: Icons.bolt_outlined,
+                      activeIcon: Icons.bolt_rounded,
+                      label: 'Templates',
+                      isSelected: currentIndex == 2,
+                      onTap: () => context.go(AppRoutes.templates),
+                    ),
+                    _AnimatedNavItem(
+                      icon: Icons.folder_outlined,
+                      activeIcon: Icons.folder_rounded,
+                      label: 'Projects',
+                      isSelected: currentIndex == 3,
+                      onTap: () => context.go(AppRoutes.projects),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 48),
-              _AnimatedNavItem(
-                icon: Icons.bolt_outlined,
-                activeIcon: Icons.bolt_rounded,
-                label: 'Templates',
-                isSelected: currentIndex == 2,
-                onTap: () => context.go(AppRoutes.templates),
-              ),
-              _AnimatedNavItem(
-                icon: Icons.folder_outlined,
-                activeIcon: Icons.folder_rounded,
-                label: 'Projects',
-                isSelected: currentIndex == 3,
-                onTap: () => context.go(AppRoutes.projects),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

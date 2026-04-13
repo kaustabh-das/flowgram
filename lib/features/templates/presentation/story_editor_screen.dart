@@ -11,6 +11,7 @@ import 'package:colorfilter_generator/addons.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/services/image_picker_service.dart';
 import '../../../core/services/export_service.dart';
+import '../../../core/widgets/glass_card.dart';
 import '../../gallery/presentation/gallery_provider.dart';
 import '../domain/collage_layout.dart';
 import '../data/template_repository.dart';
@@ -450,6 +451,119 @@ class _ImageLayerWidgetState extends ConsumerState<_ImageLayerWidget> {
     _offsetOrigin = Offset.zero;
   }
 
+  Future<String?> _showImportModal(BuildContext context) async {
+    final projects = ref.read(galleryProvider);
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surfaceDark,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 24, right: 24, top: 12, bottom: 48),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 24),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const Text('Select Image', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                const SizedBox(height: 24),
+                PressableCard(
+                  onTap: () => Navigator.pop(ctx, 'GALLERY'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: AppColors.accentGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.accentPurple.withValues(alpha: 0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: const BoxDecoration(
+                            color: Colors.white24,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.photo_library_rounded, color: Colors.white, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Device Gallery', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text('Browse all photos', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 16),
+                      ],
+                    ),
+                  ),
+                ),
+                if (projects.isNotEmpty) ...[
+                  const SizedBox(height: 32),
+                  const Text('Recent Edits', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 110,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: projects.length,
+                      itemBuilder: (context, i) {
+                        final p = projects[i];
+                        return PressableCard(
+                          onTap: () => Navigator.pop(ctx, p.imagePath),
+                          child: Container(
+                            width: 110,
+                            margin: const EdgeInsets.only(right: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              image: DecorationImage(
+                                image: MemoryImage(p.thumbnail),
+                                fit: BoxFit.cover,
+                              ),
+                              border: Border.all(color: Colors.white10),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                    )
+                  )
+                ]
+              ],
+            ),
+          ),
+        );
+      }
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(storyEditorProvider);
@@ -521,13 +635,22 @@ class _ImageLayerWidgetState extends ConsumerState<_ImageLayerWidget> {
       slotContent = GestureDetector(
         onTap: () async {
           if (slotData?.isLoading == true) return;
+          final sourcePath = await _showImportModal(context);
+          if (sourcePath == null) return;
+
           ref.read(storyEditorProvider.notifier).setLoading(widget.layer.id, true);
-          final result = await ref.read(imagePickerServiceProvider).pickFromGallery();
-          if (result is PickSuccess) {
-            ref.read(storyEditorProvider.notifier).setImage(widget.layer.id, result.file.path);
-            widget.onAutoSave();
+          if (sourcePath == 'GALLERY') {
+            final result = await ref.read(imagePickerServiceProvider).pickFromGallery();
+            if (result is PickSuccess) {
+              ref.read(storyEditorProvider.notifier).setImage(widget.layer.id, result.file.path);
+              widget.onAutoSave();
+            } else {
+              ref.read(storyEditorProvider.notifier).setLoading(widget.layer.id, false);
+            }
           } else {
-            ref.read(storyEditorProvider.notifier).setLoading(widget.layer.id, false);
+            // Load from project path
+            ref.read(storyEditorProvider.notifier).setImage(widget.layer.id, sourcePath);
+            widget.onAutoSave();
           }
         },
         child: Container(
