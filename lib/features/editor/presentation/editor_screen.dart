@@ -826,7 +826,7 @@ class _EditorAppBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF080808),
-      padding: EdgeInsets.only(top: topPad + 4, left: 8, right: 8, bottom: 4),
+      padding: EdgeInsets.only(top: topPad + 2, left: 4, right: 8, bottom: 2),
       child: Row(
         children: [
           // Close
@@ -996,7 +996,7 @@ class _ImagePreviewState extends State<_ImagePreview> {
       onTapUp: (_) => _cancelTimer(),
       onTapCancel: () => _cancelTimer(),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
         child: RepaintBoundary(
           child: InteractiveViewer(
             minScale: 0.5,
@@ -1640,9 +1640,9 @@ class _AdjustPanelState extends State<_AdjustPanel> {
               ),
             ),
             
-          // Sliders Area
+          // Sliders Area — compact to give image maximum height
           SizedBox(
-            height: 250,
+            height: 185,
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               physics: const BouncingScrollPhysics(),
@@ -1670,8 +1670,6 @@ class _AdjustPanelState extends State<_AdjustPanel> {
               ],
             ),
           ),
-
-          const SizedBox(height: 12),
 
           // Secondary Tab Ribbon — pinned at bottom with safe-area padding
           Container(
