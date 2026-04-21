@@ -156,7 +156,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
                         );
                       } else {
                         context.push(
-                          '${AppRoutes.editor}?path=${Uri.encodeComponent(project.imagePath)}',
+                          '${AppRoutes.editor}?projectId=${project.id}',
                         );
                       }
                     }

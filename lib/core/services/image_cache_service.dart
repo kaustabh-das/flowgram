@@ -62,7 +62,9 @@ class ImageCacheService {
 
   // ── Public API ────────────────────────────────────────────────────
 
-  /// Returns a cached [ui.Image] for [key], or null if not cached.
+  /// Returns a **clone** of the cached [ui.Image] for [key], or null if not cached.
+  /// The caller OWNS the returned image and must call [ui.Image.dispose] when done.
+  /// The cache retains its own copy and remains valid.
   ui.Image? getMemory(String key) {
     final entry = _mem[key];
     if (entry == null) return null;
@@ -70,7 +72,16 @@ class ImageCacheService {
     // Move to end (most-recently-used position)
     _mem.remove(key);
     _mem[key] = entry;
-    return entry.image;
+    // Return a CLONE — never give the caller a direct reference to the
+    // cache entry; if they dispose it they would corrupt the cache.
+    try {
+      return entry.image.clone();
+    } catch (_) {
+      // Entry image was somehow already disposed (e.g. during low-memory eviction
+      // on a different thread). Evict it and treat as cache miss.
+      _evictKey(key);
+      return null;
+    }
   }
 
   /// Stores [image] under [key], evicting LRU entries as needed.

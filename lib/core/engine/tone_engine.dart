@@ -46,7 +46,7 @@ class ToneEngine {
   /// Apply this to any [ColorFiltered] or [Paint.colorFilter] widget.
   static ColorFilter buildFilter(ToneParams p) {
     final m = _buildMatrix(p);
-    return ColorFilter.matrix(m);
+    return ColorFilter.matrix(_scaleOffsets(m));
   }
 
   /// Returns an ordered list of [ColorFilter]s for multi-pass rendering.
@@ -81,10 +81,20 @@ class ToneEngine {
     }
 
     return [
-      ColorFilter.matrix(primary),
-      ColorFilter.matrix(secondary),
-      ColorFilter.matrix(tertiary),
+      ColorFilter.matrix(_scaleOffsets(primary)),
+      ColorFilter.matrix(_scaleOffsets(secondary)),
+      ColorFilter.matrix(_scaleOffsets(tertiary)),
     ];
+  }
+
+  /// Scales the translation column (indices 4, 9, 14, 19) to match Flutter's 0-255 format.
+  static List<double> _scaleOffsets(List<double> m) {
+    final out = List<double>.from(m);
+    out[4] *= 255.0;
+    out[9] *= 255.0;
+    out[14] *= 255.0;
+    out[19] *= 255.0;
+    return out;
   }
 
   /// Builds the full composed matrix for [p].

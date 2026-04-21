@@ -18,11 +18,13 @@ import '../../../core/services/image_cache_service.dart';
 import '../../../core/services/image_picker_service.dart';
 import '../../../core/utils/image_utils.dart';
 import '../../../core/widgets/glass_card.dart';
-import '../../../core/widgets/histogram_widget.dart';
-import '../../../core/widgets/tone_curve_editor.dart';
 import '../../../core/services/export_service.dart';
 import '../../../core/widgets/prequel_slider.dart';
+import '../../../core/widgets/shader_preview_widget.dart';
 import '../../gallery/presentation/gallery_provider.dart';
+import '../../../core/engine/hsl_params.dart';
+import '../../../core/presets/filter_presets.dart';
+import 'widgets/hsl_panel.dart';
 import 'package:image_cropper/image_cropper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,6 +52,8 @@ class EditorImageState {
     this.histogram,
     this.canUndo = false,
     this.canRedo = false,
+    this.activePresetId = 'none',
+    this.projectId,
   });
 
   final EditorStatus status;
@@ -69,8 +73,13 @@ class EditorImageState {
   final bool canUndo;
   final bool canRedo;
 
+  /// ID of the currently selected [FilterPreset]. 'none' = Original.
+  final String activePresetId;
+
+  /// ID of the project in the gallery.
+  final String? projectId;
+
   // Legacy shims so nothing else breaks
-  double get brightness  => tone.exposure;
   double get contrast    => tone.contrast;
   double get saturation  => tone.saturation;
   bool   get isVintage   => tone.isVintage;
@@ -89,6 +98,8 @@ class EditorImageState {
     HistogramResult? histogram,
     bool? canUndo,
     bool? canRedo,
+    String? activePresetId,
+    String? projectId,
   }) =>
       EditorImageState(
         status: status ?? this.status,
@@ -102,6 +113,8 @@ class EditorImageState {
         histogram: histogram ?? this.histogram,
         canUndo: canUndo ?? this.canUndo,
         canRedo: canRedo ?? this.canRedo,
+        activePresetId: activePresetId ?? this.activePresetId,
+        projectId: projectId ?? this.projectId,
       );
 
   EditorImageState cleared() => const EditorImageState();
@@ -127,6 +140,8 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
 
   // Histogram debounce timer — avoids recomputing on every slider tick.
   Timer? _histogramTimer;
+  // Autosave debounce timer
+  Timer? _autoSaveTimer;
 
   // ── Undo / Redo history ───────────────────────────────────────────
   final List<_AdjustSnapshot> _undoStack = [];
@@ -151,6 +166,7 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
       canRedo: true,
     );
     _scheduleHistogramUpdate();
+    _scheduleAutoSave();
   }
 
   void redo() {
@@ -163,43 +179,55 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
       canRedo: _redoStack.isNotEmpty,
     );
     _scheduleHistogramUpdate();
+    _scheduleAutoSave();
   }
 
   // ── Tone setters (non-destructive) ────────────────────────────────
 
-  void _setTone(ToneParams t) {
+  void updateTone(ToneParams t) {
     if (!mounted) return;
     state = state.copyWith(tone: t);
     _scheduleHistogramUpdate();
+    _scheduleAutoSave();
   }
 
-  void setExposure(double v)    => _setTone(state.tone.copyWith(exposure: v));
-  void setContrast(double v)    => _setTone(state.tone.copyWith(contrast: v));
-  void setHighlights(double v)  => _setTone(state.tone.copyWith(highlights: v));
-  void setShadows(double v)     => _setTone(state.tone.copyWith(shadows: v));
-  void setWhites(double v)      => _setTone(state.tone.copyWith(whites: v));
-  void setBlacks(double v)      => _setTone(state.tone.copyWith(blacks: v));
-  void setSaturation(double v)  => _setTone(state.tone.copyWith(saturation: v));
-  void setVibrance(double v)    => _setTone(state.tone.copyWith(vibrance: v));
-  void setWarmth(double v)      => _setTone(state.tone.copyWith(warmth: v));
+  void setExposure(double v)    => updateTone(state.tone.copyWith(exposure: v));
+  void setBrightness(double v)  => updateTone(state.tone.copyWith(brightness: v));
+  void setContrast(double v)    => updateTone(state.tone.copyWith(contrast: v));
+  void setHighlights(double v)  => updateTone(state.tone.copyWith(highlights: v));
+  void setShadows(double v)     => updateTone(state.tone.copyWith(shadows: v));
+  void setWhites(double v)      => updateTone(state.tone.copyWith(whites: v));
+  void setBlacks(double v)      => updateTone(state.tone.copyWith(blacks: v));
+  void setBlackPoint(double v)  => updateTone(state.tone.copyWith(blackPoint: v));
+  void setFade(double v)        => updateTone(state.tone.copyWith(fade: v));
+  void setBrilliance(double v)  => updateTone(state.tone.copyWith(brilliance: v));
+  void setClarity(double v)     => updateTone(state.tone.copyWith(clarity: v));
+  
+  void setSharpen(double v)     => updateTone(state.tone.copyWith(sharpen: v));
+  void setTexture(double v)     => updateTone(state.tone.copyWith(texture: v));
+  void setLumaNR(double v)      => updateTone(state.tone.copyWith(luminanceNoiseReduction: v));
+  void setColorNR(double v)     => updateTone(state.tone.copyWith(colorNoiseReduction: v));
+  void setGrain(double v)       => updateTone(state.tone.copyWith(grain: v));
+
+  void setSaturation(double v)  => updateTone(state.tone.copyWith(saturation: v));
+  void setVibrance(double v)    => updateTone(state.tone.copyWith(vibrance: v));
+  void setWarmth(double v)      => updateTone(state.tone.copyWith(warmth: v));
   void setVintage(bool v) {
     commitToHistory();
-    _setTone(state.tone.copyWith(isVintage: v));
-  }
-  void setToneCurve(ToneCurvePreset p) {
-    commitToHistory();
-    _setTone(state.tone.copyWith(toneCurve: p, clearCurvePoints: true));
-  }
-  void setCurvePoints(List<Offset> pts) {
-    _setTone(state.tone.copyWith(curvePoints: pts, toneCurve: ToneCurvePreset.none));
+    updateTone(state.tone.copyWith(isVintage: v));
   }
   void resetTone() {
     commitToHistory();
-    _setTone(const ToneParams());
+    state = state.copyWith(activePresetId: 'none');
+    updateTone(const ToneParams());
   }
 
-  /// Legacy shim
-  void setBrightness(double v) => setExposure(v);
+  /// Applies a [FilterPreset] from the catalog, recording history.
+  void applyPreset(FilterPreset preset) {
+    commitToHistory();
+    state = state.copyWith(activePresetId: preset.id);
+    updateTone(preset.params);
+  }
 
   // ── Auto Brightness ───────────────────────────────────────────────
 
@@ -208,7 +236,7 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
     if (hist == null) return;
     commitToHistory();
     final corrected = AutoBrightnessAnalyzer.mergeInto(state.tone, hist);
-    _setTone(corrected);
+    updateTone(corrected);
   }
 
   // ── Histogram computation ─────────────────────────────────────────
@@ -225,6 +253,25 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
     final result = await HistogramComputer.compute(img);
     if (!mounted) return;
     state = state.copyWith(histogram: result);
+  }
+
+  // ── Auto-save ─────────────────────────────────────────────────────
+
+  void _scheduleAutoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 1000), _executeAutoSave);
+  }
+
+  Future<void> _executeAutoSave() async {
+    if (!mounted || state.sourceFile == null || state.projectId == null) return;
+    try {
+      await _galleryNotifier.addProject(
+        id: state.projectId,
+        imagePath: state.sourceFile!.path,
+        thumbnail: state.thumbnail ?? Uint8List(0),
+        toneParams: state.tone,
+      );
+    } catch (_) {}
   }
 
   // ── Public methods ────────────────────────────────────────────────
@@ -246,6 +293,7 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
     if (result != null) {
       final newFile = File(result.path);
       await _loadFileIntoState(newFile);
+      _executeAutoSave();
     }
     state = state.copyWith(status: EditorStatus.ready, activeToolIndex: -1);
   }
@@ -274,6 +322,7 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
     if (croppedFile != null) {
       final newFile = File(croppedFile.path);
       await _loadFileIntoState(newFile);
+      _executeAutoSave();
     }
     state = state.copyWith(status: EditorStatus.ready, activeToolIndex: -1);
   }
@@ -286,12 +335,41 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
   void clear() {
     _token++;
     _histogramTimer?.cancel();
+    _autoSaveTimer?.cancel();
     state = state.cleared();
   }
 
-  /// Loads an image from an existing [filePath] (e.g. deep-linked from home).
+  /// Loads an image from an existing [filePath] (e.g. deep-linked from home or projects).
   Future<void> loadFromPath(String filePath) async {
-    await _loadFileIntoState(File(filePath));
+    // Grab a token so an in-flight pick or previous load can be cancelled.
+    final token = ++_token;
+    state = state.copyWith(status: EditorStatus.loading);
+    await _loadFileIntoState(File(filePath), token: token);
+    // If still our token and load silently fell through, reset to idle.
+    if (mounted && _token == token && state.status == EditorStatus.loading) {
+      state = state.copyWith(status: EditorStatus.idle);
+    }
+  }
+
+  /// Loads a [GalleryProject], restoring its image AND all saved adjustments.
+  Future<void> loadFromProject(GalleryProject project) async {
+    final token = ++_token;
+    state = state.copyWith(status: EditorStatus.loading, projectId: project.id, thumbnail: project.thumbnail);
+    await _loadFileIntoState(File(project.imagePath), token: token);
+    // Restore saved tone params if the load succeeded with our token.
+    if (mounted && _token == token && state.status == EditorStatus.ready) {
+      // Find matching preset id if the tone matches a known preset.
+      final matchedPresetId = kBuiltInPresets
+          .where((p) => p.params == project.toneParams)
+          .map((p) => p.id)
+          .firstOrNull ?? 'none';
+      state = state.copyWith(
+        tone: project.toneParams,
+        activePresetId: matchedPresetId,
+      );
+    } else if (mounted && _token == token && state.status == EditorStatus.loading) {
+      state = state.copyWith(status: EditorStatus.idle);
+    }
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
@@ -302,7 +380,12 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
 
     final result = await picker();
 
-    if (!mounted || token != _token) return;
+    // If a newer pick/load started while the picker was open, discard result
+    // but ALWAYS reset status so the UI is never left stuck on 'opening gallery'.
+    if (!mounted || token != _token) {
+      if (mounted) state = state.copyWith(status: EditorStatus.idle);
+      return;
+    }
 
     switch (result) {
       case PickSuccess(:final file, :final thumbnail):
@@ -311,10 +394,13 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
           thumbnail: thumbnail,
         );
         if (thumbnail != null) {
-          _galleryNotifier.addProject(
+          final newProjectId = await _galleryNotifier.addProject(
             imagePath: file.path,
             thumbnail: thumbnail,
           );
+          if (mounted && token == _token) {
+            state = state.copyWith(projectId: newProjectId);
+          }
         }
         await _loadFileIntoState(file, token: token, thumbnail: thumbnail);
 
@@ -343,18 +429,24 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
     final myToken = token ?? _token;
 
     final cacheKey = file.path;
-    final cached = _cache.getMemory(cacheKey);
+    final cached = _cache.getMemory(cacheKey); // returns a caller-owned clone
     if (cached != null) {
-      if (!mounted || myToken != _token) return;
+      if (!mounted || myToken != _token) {
+        cached.dispose();
+        return;
+      }
       final size = await _sizeLabel(file);
+      if (!mounted || myToken != _token) {
+        cached.dispose();
+        return;
+      }
       state = state.copyWith(
         status: EditorStatus.ready,
         sourceFile: file,
-        displayImage: cached.clone(),
+        displayImage: cached, // already a fresh clone from getMemory — use directly
         imageSizeLabel: size,
         thumbnail: thumbnail ?? state.thumbnail,
       );
-      cached.dispose();
       _scheduleHistogramUpdate();
       return;
     }
@@ -408,6 +500,7 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
   @override
   void dispose() {
     _histogramTimer?.cancel();
+    _autoSaveTimer?.cancel();
     state.displayImage?.dispose();
     super.dispose();
   }
@@ -418,7 +511,7 @@ class EditorImageNotifier extends StateNotifier<EditorImageState> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 final editorImageProvider =
-    StateNotifierProvider<EditorImageNotifier, EditorImageState>((ref) {
+    StateNotifierProvider.autoDispose<EditorImageNotifier, EditorImageState>((ref) {
   return EditorImageNotifier(
     ref.watch(imagePickerServiceProvider),
     ref.watch(imageCacheServiceProvider),
@@ -431,9 +524,10 @@ final editorImageProvider =
 // ─────────────────────────────────────────────────────────────────────────────
 
 class EditorScreen extends ConsumerStatefulWidget {
-  const EditorScreen({super.key, this.imagePath});
+  const EditorScreen({super.key, this.imagePath, this.projectId});
 
   final String? imagePath;
+  final String? projectId;
 
   @override
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
@@ -445,7 +539,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.imagePath != null) {
+    if (widget.projectId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final project = ref.read(galleryProvider).firstWhere(
+              (p) => p.id == widget.projectId,
+              orElse: () => throw StateError('Project missing'),
+            );
+        ref.read(editorImageProvider.notifier).loadFromProject(project);
+      });
+    } else if (widget.imagePath != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(editorImageProvider.notifier).loadFromPath(widget.imagePath!);
       });
@@ -463,7 +565,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     // the real gesture-nav inset on modern devices. No fake fallback needed.
     final bottomPad = mq.padding.bottom;
     final hasPanel = state.activeToolIndex >= 0 && state.hasImage;
-
+    final hasAdjustOrFilter = state.hasImage && (state.activeToolIndex == 2 || state.activeToolIndex == 3);
+    final topBarHeight = topPad + 48.0;
+    final bottomPanelHeight = (mq.size.height * 0.37) - topBarHeight;
     ref.listen<EditorImageState>(editorImageProvider, (prev, next) {
       if (next.status == EditorStatus.error && next.errorMessage != null) {
         _showErrorSnack(context, next.errorMessage!);
@@ -479,10 +583,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             topPad: topPad,
             state: state,
             onClear: notifier.clear,
-            onSave: () => _onSaveToProjects(context, state),
             onClose: () => context.pop(),
             onUndo: notifier.undo,
             onRedo: notifier.redo,
+            onReset: notifier.resetTone,
           ),
 
           // ── Image Area + floating export ─────────────────────────
@@ -505,35 +609,52 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                       onTap: () => _onExport(context, state),
                     ),
                   ),
+
+
               ],
             ),
           ),
 
           // ── Bottom Toolbar ────────────────────────────────────────
           if (state.hasImage)
-            _EditorToolbar(
-              bottomPad: bottomPad,
-              activeIndex: state.activeToolIndex,
-              isProcessing: state.status == EditorStatus.processing,
-              customPanel: state.activeToolIndex == 2
-                  ? _AdjustPanel(
-                      state: state,
-                      notifier: notifier,
+            hasAdjustOrFilter
+                ? SizedBox(
+                    height: bottomPanelHeight,
+                    child: _EditorToolbar(
                       bottomPad: bottomPad,
-                    )
-                  : state.activeToolIndex == 3
-                      ? _FilterPanel(
-                          state: state,
-                          notifier: notifier,
-                          bottomPad: bottomPad,
-                        )
-                      : null,
-              onCompress: notifier.compress,
-              onCrop: notifier.crop,
-              onAdjust: () => notifier.setActiveTool(2),
-              onFilter: () => notifier.setActiveTool(3),
-              onText: () => notifier.setActiveTool(4),
-            ),
+                      activeIndex: state.activeToolIndex,
+                      isProcessing: state.status == EditorStatus.processing,
+                      customPanel: state.activeToolIndex == 2
+                          ? _AdjustPanel(
+                              state: state,
+                              notifier: notifier,
+                              bottomPad: bottomPad,
+                            )
+                          : state.activeToolIndex == 3
+                              ? _FilterPanel(
+                                  state: state,
+                                  notifier: notifier,
+                                  bottomPad: bottomPad,
+                                )
+                              : null,
+                      onCompress: notifier.compress,
+                      onCrop: notifier.crop,
+                      onAdjust: () => notifier.setActiveTool(2),
+                      onFilter: () => notifier.setActiveTool(3),
+                      onText: () => notifier.setActiveTool(4),
+                    ),
+                  )
+                : _EditorToolbar(
+                    bottomPad: bottomPad,
+                    activeIndex: state.activeToolIndex,
+                    isProcessing: state.status == EditorStatus.processing,
+                    customPanel: null,
+                    onCompress: notifier.compress,
+                    onCrop: notifier.crop,
+                    onAdjust: () => notifier.setActiveTool(2),
+                    onFilter: () => notifier.setActiveTool(3),
+                    onText: () => notifier.setActiveTool(4),
+                  ),
         ],
       ),
     );
@@ -599,29 +720,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
-  Future<void> _onSaveToProjects(BuildContext context, EditorImageState state) async {
-    if (state.sourceFile == null) return;
-    try {
-      ref.read(galleryProvider.notifier).addProject(
-        imagePath: state.sourceFile!.path,
-        thumbnail: state.thumbnail ?? Uint8List(0),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Saved to Projects! ✓'),
-            backgroundColor: AppColors.accentCyan,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save error: $e')),
-        );
-      }
-    }
-  }
 
   Future<void> _showImportOptions(BuildContext context, EditorImageNotifier notifier) async {
     final selection = await showModalBottomSheet<String>(
@@ -699,7 +797,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                   final p = projects[i];
                   return GestureDetector(
                     onTap: () {
-                      notifier.loadFromPath(p.imagePath);
+                      notifier.loadFromProject(p);  // restores path + tone
                       Navigator.pop(ctx);
                     },
                     child: ClipRRect(
@@ -742,8 +840,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
-  /// Exports the image at its original pixel dimensions with ToneEngine filters
-  /// applied via canvas — no UI widget capture, no rounded corners, no margins.
+  /// Exports the image at its original pixel dimensions with ALL ToneParams applied.
+  /// Uses ToneEngine.buildFilter() — same engine as the live preview — so what you
+  /// see on screen is exactly what gets exported.
   Future<void> _onExport(BuildContext context, EditorImageState state) async {
     if (state.displayImage == null || state.sourceFile == null) return;
 
@@ -753,15 +852,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       );
 
       final src = state.displayImage!;
-
-      // Use ToneEngine (same filter as preview — guaranteed consistency).
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      final paint = Paint();
+
       if (!state.tone.isNeutral) {
-        paint.colorFilter = ToneEngine.buildFilter(state.tone);
+        // Build the complete ColorFilter (all 24+ params via ToneEngine matrix)
+        final cf = ToneEngine.buildFilter(state.tone);
+        final paint = Paint()..colorFilter = cf;
+        canvas.drawImage(src, Offset.zero, paint);
+      } else {
+        canvas.drawImage(src, Offset.zero, Paint());
       }
-      canvas.drawImage(src, Offset.zero, paint);
+
       final picture = recorder.endRecording();
       final exportImage = await picture.toImage(src.width, src.height);
       final byteData = await exportImage.toByteData(format: ui.ImageByteFormat.png);
@@ -770,10 +872,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
       final success = await ref.read(exportServiceProvider).saveImageToGallery(pngBytes);
 
+      // Also update the project record so it reflects the exported edits.
       if (success) {
         ref.read(galleryProvider.notifier).addProject(
+          id: state.projectId,
           imagePath: state.sourceFile!.path,
           thumbnail: state.thumbnail ?? pngBytes,
+          toneParams: state.tone,
         );
       }
 
@@ -808,19 +913,19 @@ class _EditorAppBar extends StatelessWidget {
     required this.topPad,
     required this.state,
     required this.onClear,
-    required this.onSave,
     required this.onClose,
     required this.onUndo,
     required this.onRedo,
+    required this.onReset,
   });
 
   final double topPad;
   final EditorImageState state;
   final VoidCallback onClear;
-  final VoidCallback onSave;
   final VoidCallback onClose;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -872,6 +977,12 @@ class _EditorAppBar extends StatelessWidget {
           // Right actions
           if (state.hasImage) ...[
             _NavIconBtn(
+              icon: Icons.settings_backup_restore_rounded,
+              onTap: !state.tone.isNeutral ? onReset : null,
+              dimmed: state.tone.isNeutral,
+            ),
+            const SizedBox(width: 4),
+            _NavIconBtn(
               icon: Icons.undo_rounded,
               onTap: state.canUndo ? onUndo : null,
               dimmed: !state.canUndo,
@@ -898,11 +1009,6 @@ class _EditorAppBar extends StatelessWidget {
                       Container(width: 36, height: 3,
                           decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
                       const SizedBox(height: 8),
-                      ListTile(
-                        leading: const Icon(Icons.save_rounded, color: AppColors.accentCyan, size: 20),
-                        title: const Text('Save to Projects', style: TextStyle(color: Colors.white, fontSize: 14)),
-                        onTap: () { Navigator.pop(context); onSave(); },
-                      ),
                       ListTile(
                         leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
                         title: const Text('Clear Image', style: TextStyle(color: Colors.white, fontSize: 14)),
@@ -989,7 +1095,10 @@ class _ImagePreviewState extends State<_ImagePreview> {
     );
     final Widget image = widget.isComparing || widget.state.tone.isNeutral
         ? raw
-        : ColorFiltered(colorFilter: ToneEngine.buildFilter(widget.state.tone), child: raw);
+        : ShaderPreviewWidget(
+            image: widget.state.displayImage!,
+            tone: widget.state.tone,
+          );
 
     return GestureDetector(
       onTapDown: (_) => _startTimer(),
@@ -1605,7 +1714,6 @@ class _AdjustPanelState extends State<_AdjustPanel> {
     {'label': 'Color', 'icon': Icons.color_lens_rounded},
     {'label': 'HSL', 'icon': Icons.tune_rounded},
     {'label': 'Details', 'icon': Icons.change_history_rounded},
-    {'label': 'Curves', 'icon': Icons.show_chart_rounded},
   ];
 
   @override
@@ -1617,52 +1725,43 @@ class _AdjustPanelState extends State<_AdjustPanel> {
       color: Colors.transparent,
       padding: const EdgeInsets.only(top: 12),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
-          // Top Actions
-          if (!tone.isNeutral)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 20, bottom: 12),
-                child: GestureDetector(
-                  onTap: notifier.resetTone,
-                  child: Container(
-                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                     decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
-                     child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.refresh_rounded, color: Colors.redAccent, size: 14),
-                        SizedBox(width: 4),
-                        Text('RESET', style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.w600)),
-                     ]),
-                  ),
-                ),
-              ),
-            ),
-            
           // Sliders Area — compact to give image maximum height
-          SizedBox(
-            height: 185,
+          Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               physics: const BouncingScrollPhysics(),
               children: [
                 if (_categoryIndex == 0) ...[
                   PrequelSlider(label: 'Exposure', value: tone.exposure, onChanged: notifier.setExposure, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Brightness', value: tone.brightness, onChanged: notifier.setBrightness, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                   PrequelSlider(label: 'Contrast', value: tone.contrast, onChanged: notifier.setContrast, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                   PrequelSlider(label: 'Highlights', value: tone.highlights, onChanged: notifier.setHighlights, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                   PrequelSlider(label: 'Shadows', value: tone.shadows, onChanged: notifier.setShadows, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                   PrequelSlider(label: 'Whites', value: tone.whites, onChanged: notifier.setWhites, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                   PrequelSlider(label: 'Blacks', value: tone.blacks, onChanged: notifier.setBlacks, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Black Point', value: tone.blackPoint, onChanged: notifier.setBlackPoint, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Fade', value: tone.fade, onChanged: notifier.setFade, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Brilliance', value: tone.brilliance, onChanged: notifier.setBrilliance, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Clarity', value: tone.clarity, onChanged: notifier.setClarity, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                 ] else if (_categoryIndex == 1) ...[
                   PrequelSlider(label: 'Saturation', value: tone.saturation, onChanged: notifier.setSaturation, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                   PrequelSlider(label: 'Vibrance', value: tone.vibrance, onChanged: notifier.setVibrance, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                   PrequelSlider(label: 'Warmth', value: tone.warmth, onChanged: notifier.setWarmth, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
-                ] else if (_categoryIndex == 4) ...[
-                  const SizedBox(height: 12),
-                  const Text('TONE CURVE', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  ToneCurveEditor(initialPoints: tone.curvePoints, onCurveChanged: notifier.setCurvePoints, height: 160),
+                ] else if (_categoryIndex == 2) ...[
+                  HslPanel(
+                    toneParams: tone,
+                    onChanged: (newTone) {
+                      notifier.updateTone(newTone);
+                    },
+                  ),
+                ] else if (_categoryIndex == 3) ...[
+                  PrequelSlider(label: 'Sharpen', value: tone.sharpen, onChanged: notifier.setSharpen, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Texture', value: tone.texture, onChanged: notifier.setTexture, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Luma NR', value: tone.luminanceNoiseReduction, onChanged: notifier.setLumaNR, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Color NR', value: tone.colorNoiseReduction, onChanged: notifier.setColorNR, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
+                  PrequelSlider(label: 'Grain', value: tone.grain, onChanged: notifier.setGrain, onChangeStart: notifier.commitToHistory, onChangeEnd: (){}),
                 ] else ...[
                   const SizedBox(height: 80),
                   const Center(child: Text('Coming Soon', style: TextStyle(color: Colors.white54, fontSize: 13))),
@@ -1729,7 +1828,11 @@ class _AdjustPanelState extends State<_AdjustPanel> {
 // ── Filter Panel ──────────────────────────────────────────────────────────────
 
 class _FilterPanel extends StatelessWidget {
-  const _FilterPanel({required this.state, required this.notifier, required this.bottomPad});
+  const _FilterPanel({
+    required this.state,
+    required this.notifier,
+    required this.bottomPad,
+  });
   final EditorImageState state;
   final EditorImageNotifier notifier;
   final double bottomPad;
@@ -1737,32 +1840,68 @@ class _FilterPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(left: 8, right: 20, top: 12, bottom: bottomPad),
-      child: Row(
+      color: const Color(0xFF0A0A0A),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
-            onPressed: () => notifier.setActiveTool(-1),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
+          // ── Header row ───────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 10, 16, 0),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _PresetCard(
-                  label: 'Normal',
-                  isSelected: !state.isVintage,
-                  onTap: () => notifier.setVintage(false),
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white, size: 16),
+                  onPressed: () => notifier.setActiveTool(-1),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
-                const SizedBox(width: 16),
-                _PresetCard(
-                  label: 'Vintage',
-                  isSelected: state.isVintage,
-                  onTap: () => notifier.setVintage(true),
+                const SizedBox(width: 8),
+                const Text(
+                  'FILTERS',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+                const Spacer(),
+                // Count badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${kBuiltInPresets.length} presets',
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w500),
+                  ),
                 ),
               ],
+            ),
+          ),
+
+          // ── Preset strip ─────────────────────────────────────────────
+          Expanded(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.fromLTRB(16, 14, 16, bottomPad + 10),
+              physics: const BouncingScrollPhysics(),
+              itemCount: kBuiltInPresets.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 14),
+              itemBuilder: (context, i) {
+                final preset = kBuiltInPresets[i];
+                final isSelected = state.activePresetId == preset.id;
+                return _PresetCard(
+                  preset: preset,
+                  image: state.displayImage,
+                  isSelected: isSelected,
+                  onTap: () => notifier.applyPreset(preset),
+                );
+              },
             ),
           ),
         ],
@@ -1771,34 +1910,166 @@ class _FilterPanel extends StatelessWidget {
   }
 }
 
+// ── Preset Card ───────────────────────────────────────────────────────────────
+
 class _PresetCard extends StatelessWidget {
-  const _PresetCard({required this.label, required this.isSelected, required this.onTap});
-  final String label;
+  const _PresetCard({
+    required this.preset,
+    required this.isSelected,
+    required this.onTap,
+    this.image,
+  });
+
+  final FilterPreset preset;
+  final ui.Image? image;
   final bool isSelected;
   final VoidCallback onTap;
 
+  static const double _thumbSize = 76;
+
   @override
   Widget build(BuildContext context) {
+    // Build the thumbnail — ColorFiltered preview of the user's image.
+    // Falls back to a gradient placeholder when no image is loaded yet.
+    Widget thumb;
+    if (image != null) {
+      final filter = ToneEngine.buildFilter(preset.params);
+      Widget raw = RawImage(
+        image: image!,
+        width: _thumbSize,
+        height: _thumbSize,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.low,
+      );
+      thumb = preset.id == 'none'
+          ? raw
+          : ColorFiltered(colorFilter: filter, child: raw);
+    } else {
+      // No image yet — show a gradient swatch
+      thumb = Container(
+        width: _thumbSize,
+        height: _thumbSize,
+        decoration: BoxDecoration(
+          gradient: preset.isPremium
+              ? AppColors.accentGradient
+              : const LinearGradient(
+                  colors: [Color(0xFF2A2A2A), Color(0xFF1A1A1A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.photo_filter_rounded,
+            color: Colors.white.withValues(alpha: 0.4),
+            size: 28,
+          ),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: isSelected ? AppColors.accentGradient : null,
-          color: isSelected ? null : AppColors.surfaceLight,
-          borderRadius: BorderRadius.circular(16),
-          border: isSelected
-              ? Border.all(color: AppColors.accentPurple.withValues(alpha: 0.5), width: 1)
-              : Border.all(color: Colors.transparent, width: 1),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : AppColors.textSecondary,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            fontSize: 14,
-          ),
+      child: SizedBox(
+        width: _thumbSize,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Thumbnail with selection ring
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: _thumbSize,
+              height: _thumbSize,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.accentPurple
+                      : Colors.white.withValues(alpha: 0.06),
+                  width: isSelected ? 2.5 : 1,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: AppColors.accentPurple.withValues(alpha: 0.45),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                        )
+                      ]
+                    : null,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10.5),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    thumb,
+                    // Premium badge
+                    if (preset.isPremium)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            gradient: AppColors.accentGradient,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'PRO',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    // Selected checkmark
+                    if (isSelected)
+                      Positioned(
+                        bottom: 4,
+                        right: 4,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: AppColors.accentPurple,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  blurRadius: 4)
+                            ],
+                          ),
+                          child: const Icon(Icons.check_rounded,
+                              size: 12, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 7),
+
+            // Label
+            Text(
+              preset.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white60,
+                fontSize: 10.5,
+                fontWeight:
+                    isSelected ? FontWeight.w700 : FontWeight.w400,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -142,24 +141,19 @@ class ImageUtils {
 
   // ── Dimensions ────────────────────────────────────────────────────
 
-  /// Returns the pixel dimensions of [file] without loading the full image.
+  /// Returns the pixel dimensions of [file] without decoding any pixels.
+  /// Uses [ui.ImageDescriptor] to read only the image header — O(1) cost
+  /// regardless of image resolution, safe to call on very large exports.
   static Future<ui.Size> getDimensions(File file) async {
     final bytes = await file.readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes,
-        targetWidth: 1, targetHeight: 1);
-    final frame = await codec.getNextFrame();
-    // We need actual size, do a second decode at natural res
-    codec.dispose();
-    frame.image.dispose();
-
-    final codec2 = await ui.instantiateImageCodec(bytes);
-    final frame2 = await codec2.getNextFrame();
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    final descriptor = await ui.ImageDescriptor.encoded(buffer);
     final size = ui.Size(
-      frame2.image.width.toDouble(),
-      frame2.image.height.toDouble(),
+      descriptor.width.toDouble(),
+      descriptor.height.toDouble(),
     );
-    frame2.image.dispose();
-    codec2.dispose();
+    descriptor.dispose();
+    buffer.dispose();
     return size;
   }
 

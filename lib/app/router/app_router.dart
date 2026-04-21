@@ -51,8 +51,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.editor,
             pageBuilder: (context, state) {
               final imagePath = state.uri.queryParameters['path'];
+              final projectId = state.uri.queryParameters['projectId'];
               return CustomTransitionPage(
-                child: EditorScreen(imagePath: imagePath),
+                child: EditorScreen(imagePath: imagePath, projectId: projectId),
                 transitionDuration: const Duration(milliseconds: 320),
                 transitionsBuilder: (context, animation, _, child) =>
                     FadeTransition(

@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Offset;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/engine/hsl_params.dart';
+import '../../../core/engine/tone_params.dart';
 import '../../../core/storage/hive_service.dart';
 import '../../../core/utils/image_utils.dart';
 
@@ -17,6 +20,7 @@ class GalleryProject {
     this.type = 'single',
     this.layoutId,
     this.templateSlots,
+    this.toneParams = const ToneParams(),
   });
 
   final String id;
@@ -31,7 +35,11 @@ class GalleryProject {
 
   final String type; // 'single' or 'template'
   final String? layoutId;
-  final Map<String, String>? templateSlots; // slotId -> permanentPath
+  final Map<String, String>? templateSlots;
+
+  /// All tone/filter/HSL adjustments applied at save time.
+  /// Restored when the project is re-opened in the editor.
+  final ToneParams toneParams;
 
   // ── Serialization ─────────────────────────────────────────────────
 
@@ -44,6 +52,7 @@ class GalleryProject {
         'type': type,
         'layoutId': layoutId,
         'templateSlots': templateSlots,
+        'toneParams': _serializeTone(toneParams),
       };
 
   factory GalleryProject.fromMap(Map<dynamic, dynamic> map) => GalleryProject(
@@ -56,6 +65,9 @@ class GalleryProject {
         type: map['type'] as String? ?? 'single',
         layoutId: map['layoutId'] as String?,
         templateSlots: (map['templateSlots'] as Map?)?.cast<String, String>(),
+        toneParams: map['toneParams'] != null
+            ? _deserializeTone(map['toneParams'] as Map)
+            : const ToneParams(),
       );
 
   GalleryProject copyWith({
@@ -66,6 +78,7 @@ class GalleryProject {
     String? type,
     String? layoutId,
     Map<String, String>? templateSlots,
+    ToneParams? toneParams,
   }) =>
       GalleryProject(
         id: id ?? this.id,
@@ -75,7 +88,123 @@ class GalleryProject {
         type: type ?? this.type,
         layoutId: layoutId ?? this.layoutId,
         templateSlots: templateSlots ?? this.templateSlots,
+        toneParams: toneParams ?? this.toneParams,
       );
+
+  // ── ToneParams serialization helpers ──────────────────────────────
+
+  static Map<String, dynamic> _serializeTone(ToneParams t) => {
+        'exposure': t.exposure,
+        'brightness': t.brightness,
+        'contrast': t.contrast,
+        'highlights': t.highlights,
+        'shadows': t.shadows,
+        'whites': t.whites,
+        'blacks': t.blacks,
+        'blackPoint': t.blackPoint,
+        'fade': t.fade,
+        'brilliance': t.brilliance,
+        'clarity': t.clarity,
+        'sharpen': t.sharpen,
+        'texture': t.texture,
+        'lumaNR': t.luminanceNoiseReduction,
+        'colorNR': t.colorNoiseReduction,
+        'grain': t.grain,
+        'saturation': t.saturation,
+        'vibrance': t.vibrance,
+        'warmth': t.warmth,
+        'isVintage': t.isVintage,
+        'highlightProtection': t.highlightProtection,
+        'toneCurve': t.toneCurve.name,
+        // curvePoints: list of [dx, dy] pairs
+        'curvePoints': t.curvePoints
+            ?.map((o) => [o.dx, o.dy])
+            .toList(),
+        // hslAdjustments: map of colorName -> [hue, sat, lum]
+        'hsl': t.hslAdjustments.map(
+          (color, adj) => MapEntry(
+            color.name,
+            [adj.hue, adj.saturation, adj.luminance],
+          ),
+        ),
+      };
+
+  static ToneParams _deserializeTone(Map<dynamic, dynamic> raw) {
+    double d(String k, [double fallback = 0.0]) =>
+        (raw[k] as num?)?.toDouble() ?? fallback;
+    bool b(String k, [bool fallback = false]) =>
+        raw[k] as bool? ?? fallback;
+
+    // Restore curve points
+    List<Offset>? curvePoints;
+    final rawCurve = raw['curvePoints'];
+    if (rawCurve is List<dynamic> && rawCurve.isNotEmpty) {
+      curvePoints = rawCurve
+          .whereType<List>()
+          .map((pair) => Offset(
+                (pair[0] as num).toDouble(),
+                (pair[1] as num).toDouble(),
+              ))
+          .toList();
+    }
+
+    // Restore HSL adjustments
+    final hsl = <HslColor, HslAdjustment>{};
+    final rawHsl = raw['hsl'];
+    if (rawHsl is Map) {
+      for (final entry in rawHsl.entries) {
+        final colorName = entry.key as String;
+        final values = entry.value as List;
+        try {
+          final color = HslColor.values.firstWhere((c) => c.name == colorName);
+          hsl[color] = HslAdjustment(
+            hue: (values[0] as num).toDouble(),
+            saturation: (values[1] as num).toDouble(),
+            luminance: (values[2] as num).toDouble(),
+          );
+        } catch (_) {
+          // Unknown color channel — ignore gracefully.
+        }
+      }
+    }
+
+    // Restore tone curve preset enum
+    ToneCurvePreset toneCurve = ToneCurvePreset.none;
+    final rawCurvePreset = raw['toneCurve'] as String?;
+    if (rawCurvePreset != null) {
+      toneCurve = ToneCurvePreset.values.firstWhere(
+        (e) => e.name == rawCurvePreset,
+        orElse: () => ToneCurvePreset.none,
+      );
+    }
+
+    return ToneParams(
+      exposure: d('exposure'),
+      brightness: d('brightness'),
+      contrast: d('contrast'),
+      highlights: d('highlights'),
+      shadows: d('shadows'),
+      whites: d('whites'),
+      blacks: d('blacks'),
+      blackPoint: d('blackPoint'),
+      fade: d('fade'),
+      brilliance: d('brilliance'),
+      clarity: d('clarity'),
+      sharpen: d('sharpen'),
+      texture: d('texture'),
+      luminanceNoiseReduction: d('lumaNR'),
+      colorNoiseReduction: d('colorNR'),
+      grain: d('grain'),
+      saturation: d('saturation'),
+      vibrance: d('vibrance'),
+      warmth: d('warmth'),
+      isVintage: b('isVintage'),
+      highlightProtection: b('highlightProtection', true),
+      toneCurve: toneCurve,
+      curvePoints: curvePoints,
+      hslAdjustments: hsl,
+    );
+  }
 }
 
 // ── Notifier ───────────────────────────────────────────────────────────────
@@ -92,8 +221,8 @@ class GalleryNotifier extends Notifier<List<GalleryProject>> {
       if (raw is Map) {
         try {
           final project = GalleryProject.fromMap(raw);
-          // Skip entries whose image file was externally deleted.
-          if (File(project.imagePath).existsSync()) {
+          // Skip entries whose image file was externally deleted or corrupt.
+          if (File(project.imagePath).existsSync() && project.thumbnail.isNotEmpty) {
             projects.add(project);
           } else {
             // Clean up orphaned Hive entry.
@@ -118,25 +247,44 @@ class GalleryNotifier extends Notifier<List<GalleryProject>> {
   /// If [imagePath] points outside permanent app storage (e.g. a temp dir or
   /// the original device gallery location), it is first copied into
   /// `flowgram_images/` so it survives OS clean-ups.
-  Future<void> addProject({
+  Future<String> addProject({
+    String? id,
     required String imagePath,
     required Uint8List thumbnail,
+    ToneParams toneParams = const ToneParams(),
   }) async {
     // Ensure we have a permanent copy.
     final permanentPath = await _ensurePermanent(imagePath);
 
+    final projectId = id ?? DateTime.now().millisecondsSinceEpoch.toString();
+
     final project = GalleryProject(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: projectId,
       imagePath: permanentPath,
       thumbnail: thumbnail,
       createdAt: DateTime.now(),
+      toneParams: toneParams,
     );
 
-    // Persist to Hive.
-    await HiveService.projects.put(project.id, project.toMap());
+    final index = state.indexWhere((p) => p.id == projectId);
+    if (index >= 0) {
+      final existing = state[index];
+      // Keep original creation time so it doesn't lose its position
+      final newProject = project.copyWith(createdAt: existing.createdAt);
+      
+      await HiveService.projects.put(newProject.id, newProject.toMap());
+      
+      final updated = [...state];
+      updated[index] = newProject;
+      state = updated;
+    } else {
+      // Persist to Hive.
+      await HiveService.projects.put(project.id, project.toMap());
 
-    // Update in-memory state (prepend so newest is first).
-    state = [project, ...state];
+      // Update in-memory state (prepend so newest is first).
+      state = [project, ...state];
+    }
+    return projectId;
   }
 
   /// Automatically saves a template project. Returns the project ID.

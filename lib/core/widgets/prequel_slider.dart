@@ -60,8 +60,9 @@ class _PrequelSliderState extends State<PrequelSlider> with SingleTickerProvider
   @override
   void didUpdateWidget(PrequelSlider oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_isDragging && _simulation == null) {
+    if (!_isDragging && _simulation == null && oldWidget.value != widget.value) {
       _pixelPos = _valueToPixels(widget.value);
+      _renderPixelPos = _pixelPos; // Instantly snap physical render to prevent racing the notifier
     }
   }
 

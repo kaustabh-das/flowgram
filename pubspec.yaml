@@ -72,5 +72,8 @@ flutter:
     - assets/fonts/
     - assets/templates.json
 
+  shaders:
+    - shaders/light_engine.frag
+
 dependency_overrides:
   image_cropper_platform_interface: 7.1.0

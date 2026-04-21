@@ -5,10 +5,13 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'core/engine/shader_engine.dart';
 import 'core/storage/hive_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  await ShaderEngine.init();
 
   // ── Lock to portrait (media apps default) ──────────────────────────
   await SystemChrome.setPreferredOrientations([
